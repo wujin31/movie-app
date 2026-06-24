@@ -101,6 +101,7 @@
   .title .yr{color:var(--muted-2);font-weight:400;font-size:13px;margin-left:6px}
   .dest{font-family:var(--mono);font-size:12.5px;color:var(--amber);margin-top:3px;letter-spacing:.04em}
   .dest .when{color:var(--muted)}
+  .dest .live{color:var(--green);margin-left:6px;font-weight:680}
   .date{font-family:var(--mono);font-size:13px;text-align:right;color:var(--ink);letter-spacing:.02em}
   .date.us{color:var(--muted-2)}
   .lead{
@@ -167,7 +168,7 @@
       </div>
     </div>
     <div class="row two">
-      <label class="checkline"><input type="checkbox" id="upcomingOnly" checked> Only show foreign releases still ahead (today or later)</label>
+      <label class="checkline"><input type="checkbox" id="notYetUS" checked> Only show films not yet on US digital (US date is TBD or still ahead)</label>
       <button class="scan" id="go">Scan the board</button>
     </div>
   </div>
@@ -318,8 +319,10 @@ function render(list) {
     return;
   }
   board.hidden = false;
+  const t = today();
   for (const it of list) {
     const lead = leadDays(it.earliest.date, it.usDigital);
+    const liveAbroad = it.earliest.date <= t;
     const el = document.createElement("div");
     el.className = "flip";
     el.tabIndex = 0;
@@ -331,7 +334,7 @@ function render(list) {
     el.innerHTML = `
       <div>
         <div class="title">${esc(it.title)}<span class="yr">${esc(it.year || "")}</span></div>
-        <div class="dest">${esc(COUNTRY.of(it.earliest.cc) || it.earliest.cc)} <span class="when">· ${fmt(it.earliest.date)}</span></div>
+        <div class="dest">${esc(COUNTRY.of(it.earliest.cc) || it.earliest.cc)} <span class="when">· ${fmt(it.earliest.date)}</span>${liveAbroad ? '<span class="live">· out now</span>' : ""}</div>
       </div>
       <div class="date ${it.usDigital ? "" : "us"}">${it.usDigital ? fmt(it.usDigital) : "—"}</div>
       <div class="${lead==null ? "lead none" : "lead"}">${lead==null ? "US TBD" : "+" + lead + "d"}</div>
@@ -369,9 +372,12 @@ async function scan() {
     }, (done) => { status.innerHTML = `Checking release dates… ${done}/${movies.length}`; });
 
     let hits = results.filter(Boolean);
-    if ($("upcomingOnly").checked) {
+    if ($("notYetUS").checked) {
+      // The point of the tool: films you can't legally stream in the US yet.
+      // Keep ones with no US digital date, or a US date that's still ahead.
+      // A *past* foreign date is good here — it means it's already out abroad.
       const t = today();
-      hits = hits.filter(h => h.earliest.date >= t);
+      hits = hits.filter(h => !h.usDigital || h.usDigital >= t);
     }
     hits.sort((a,b) => a.earliest.date.localeCompare(b.earliest.date));
 
