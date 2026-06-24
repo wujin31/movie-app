@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Early Digital Board — foreign digital releases that beat the US</title>
+<style>
+  :root{
+    --board:#0c1014;
+    --board-2:#11171d;
+    --panel:#161e26;
+    --line:#24303a;
+    --amber:#f5b301;
+    --amber-dim:#9a7a23;
+    --green:#39d98a;
+    --ink:#e7eef3;
+    --muted:#7c8da0;
+    --muted-2:#56697a;
+    --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--board);
+    color:var(--ink);
+    font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;
+    line-height:1.5;
+    padding:0 16px 64px;
+  }
+  .wrap{max-width:980px;margin:0 auto}
+
+  header{padding:32px 0 20px;border-bottom:1px solid var(--line)}
+  .kicker{
+    font-family:var(--mono);font-size:11px;letter-spacing:.32em;text-transform:uppercase;
+    color:var(--amber);margin:0 0 10px
+  }
+  h1{
+    font-size:clamp(26px,5vw,40px);margin:0;font-weight:680;letter-spacing:-.01em
+  }
+  .sub{color:var(--muted);margin:8px 0 0;max-width:62ch;font-size:14px}
+
+  /* controls */
+  .controls{
+    display:grid;grid-template-columns:1fr;gap:14px;
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:18px;margin:22px 0
+  }
+  .row{display:grid;gap:14px;grid-template-columns:1fr}
+  @media(min-width:680px){
+    .row.three{grid-template-columns:1.4fr 1fr 1fr}
+    .row.two{grid-template-columns:1fr auto}
+  }
+  label{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 6px;font-family:var(--mono)}
+  input,select{
+    width:100%;background:var(--board-2);border:1px solid var(--line);color:var(--ink);
+    border-radius:9px;padding:11px 12px;font-size:14px;font-family:var(--sans)
+  }
+  input::placeholder{color:var(--muted-2)}
+  input:focus,select:focus{outline:2px solid var(--amber);outline-offset:1px;border-color:transparent}
+  .hint{font-size:12px;color:var(--muted-2);margin:6px 0 0}
+  .hint a{color:var(--amber-dim)}
+  .checkline{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--muted);font-family:var(--sans)}
+  .checkline input{width:auto}
+
+  button.scan{
+    background:var(--amber);color:#1a1205;border:none;border-radius:9px;
+    padding:12px 22px;font-weight:680;font-size:14px;cursor:pointer;font-family:var(--sans);
+    letter-spacing:.01em;align-self:end;min-height:44px
+  }
+  button.scan:hover{filter:brightness(1.06)}
+  button.scan:disabled{opacity:.5;cursor:not-allowed}
+
+  /* status */
+  .status{font-family:var(--mono);font-size:12.5px;color:var(--muted);min-height:20px;margin:4px 2px 0}
+  .status .on{color:var(--green)}
+  .status .err{color:#ff6b6b}
+  .status .warn{color:var(--amber)}
+
+  /* board */
+  .board{margin-top:18px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--board-2)}
+  .board-head{
+    display:grid;grid-template-columns:1fr 92px 96px;gap:10px;
+    padding:12px 16px;border-bottom:1px solid var(--line);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted-2)
+  }
+  .board-head .r{text-align:right}
+  .flip{
+    display:grid;grid-template-columns:1fr 92px 96px;gap:10px;
+    padding:14px 16px;border-bottom:1px solid var(--line);align-items:center;cursor:pointer;
+    animation:fade .35s ease both
+  }
+  .flip:last-child{border-bottom:none}
+  .flip:hover{background:var(--panel)}
+  .flip:focus-visible{outline:2px solid var(--amber);outline-offset:-2px}
+  @keyframes fade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+  @media(prefers-reduced-motion:reduce){.flip{animation:none}}
+
+  .title{font-weight:620;font-size:15px;letter-spacing:-.005em}
+  .title .yr{color:var(--muted-2);font-weight:400;font-size:13px;margin-left:6px}
+  .dest{font-family:var(--mono);font-size:12.5px;color:var(--amber);margin-top:3px;letter-spacing:.04em}
+  .dest .when{color:var(--muted)}
+  .date{font-family:var(--mono);font-size:13px;text-align:right;color:var(--ink);letter-spacing:.02em}
+  .date.us{color:var(--muted-2)}
+  .lead{
+    font-family:var(--mono);font-size:13px;text-align:right;font-weight:680;
+    color:var(--green);letter-spacing:.02em
+  }
+  .lead.none{color:var(--amber);font-size:11px;font-weight:500;letter-spacing:.06em}
+
+  .detail{
+    grid-column:1/-1;display:none;padding:4px 2px 2px;margin-top:8px;
+    border-top:1px dashed var(--line)
+  }
+  .flip.open .detail{display:block}
+  .detail h4{font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted-2);margin:12px 0 8px}
+  .ctry{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12.5px;padding:4px 0;color:var(--muted)}
+  .ctry b{color:var(--ink);font-weight:500}
+  .ctry .d{color:var(--amber-dim)}
+
+  .empty{padding:40px 20px;text-align:center;color:var(--muted)}
+  .empty b{color:var(--ink);display:block;margin-bottom:6px;font-size:15px}
+
+  footer{margin-top:28px;font-size:11.5px;color:var(--muted-2);line-height:1.6;font-family:var(--mono)}
+  footer a{color:var(--amber-dim)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="kicker">Departures · Digital</p>
+    <h1>Early Digital Board</h1>
+    <p class="sub">Scans TMDB for films where a non-US market gets a digital release <em>before</em> the United States does. Sorted by the soonest foreign departure. Your key stays in your browser — nothing is sent anywhere except TMDB.</p>
+  </header>
+
+  <div class="controls">
+    <div class="row">
+      <div>
+        <label for="key">TMDB API key or read-access token</label>
+        <input id="key" type="password" placeholder="v3 key (abc123…) or v4 token (eyJ…)" autocomplete="off" spellcheck="false">
+        <p class="hint">Get one free under Settings → API at <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">themoviedb.org</a>. Either the v3 key or the longer v4 read token works.</p>
+      </div>
+    </div>
+    <div class="row three">
+      <div>
+        <label for="src">Source list</label>
+        <select id="src">
+          <option value="now_playing">In theaters now</option>
+          <option value="upcoming" selected>Upcoming</option>
+          <option value="popular">Popular</option>
+          <option value="top_rated">Top rated</option>
+        </select>
+      </div>
+      <div>
+        <label for="pages">Pages to scan</label>
+        <select id="pages">
+          <option value="1">1 · ~20 films</option>
+          <option value="2" selected>2 · ~40 films</option>
+          <option value="3">3 · ~60 films</option>
+          <option value="5">5 · ~100 films</option>
+        </select>
+      </div>
+      <div>
+        <label for="title">Or search one title</label>
+        <input id="title" type="text" placeholder="overrides the list" spellcheck="false">
+      </div>
+    </div>
+    <div class="row two">
+      <label class="checkline"><input type="checkbox" id="upcomingOnly" checked> Only show foreign releases still ahead (today or later)</label>
+      <button class="scan" id="go">Scan the board</button>
+    </div>
+  </div>
+
+  <p class="status" id="status" role="status" aria-live="polite"></p>
+
+  <div class="board" id="board" hidden>
+    <div class="board-head">
+      <span>Film · earliest foreign digital</span>
+      <span class="r">US digital</span>
+      <span class="r">Lead</span>
+    </div>
+    <div id="rows"></div>
+  </div>
+
+  <footer>
+    This product uses the TMDB API but is not endorsed or certified by TMDB. Data and release dates are community-sourced and can be incomplete or shift; confirm on a storefront before relying on a date. "Digital" = TMDB release type 4 (streaming / VOD rent or buy).
+  </footer>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const status = $("status");
+const COUNTRY = (() => {
+  try { return new Intl.DisplayNames(["en"], { type: "region" }); }
+  catch { return { of: c => c }; }
+})();
+
+// escape untrusted strings (TMDB titles can contain & < > etc.) before innerHTML
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => (
+  { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]
+));
+
+// A TMDB release_date is "YYYY-MM-DD..." — parse only the calendar parts as a
+// LOCAL date. Using `new Date("YYYY-MM-DD")` would parse as UTC midnight and
+// then render a day early for anyone west of UTC, which is exactly nobody's
+// idea of a useful release-date tool.
+const parseDay = iso => {
+  const [y, m, d] = String(iso).slice(0, 10).split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+};
+const fmt = iso => {
+  const d = parseDay(iso);
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString("en-US", { day:"2-digit", month:"short", year:"numeric" });
+};
+const dayKey = iso => String(iso).slice(0,10);
+const today = () => {
+  const n = new Date();
+  const p = x => String(x).padStart(2, "0");
+  return `${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`;
+};
+
+// auth: v4 read tokens are JWTs (start eyJ / contain dots) -> Bearer header.
+// otherwise treat as a v3 api_key query param.
+function authFetch(path, params = {}) {
+  const key = $("key").value.trim();
+  const base = "https://api.themoviedb.org/3" + path;
+  const url = new URL(base);
+  Object.entries(params).forEach(([k,v]) => url.searchParams.set(k,v));
+  const isToken = key.startsWith("eyJ") || (key.split(".").length === 3);
+  const opts = { headers: { accept: "application/json" } };
+  if (isToken) opts.headers.Authorization = "Bearer " + key;
+  else url.searchParams.set("api_key", key);
+  return fetch(url.toString(), opts).then(r => {
+    if (!r.ok) {
+      let extra = "";
+      if (r.status === 401) extra = " — check your key/token";
+      else if (r.status === 429) extra = " — rate limited, try fewer pages";
+      throw new Error("TMDB " + r.status + extra);
+    }
+    return r.json();
+  });
+}
+
+// small concurrency pool so we stay polite to the API. Tracks failures so the
+// UI can warn instead of silently returning a short board.
+async function pool(items, size, worker, onTick) {
+  const out = []; let i = 0, done = 0, failed = 0;
+  async function run() {
+    while (i < items.length) {
+      const idx = i++;
+      try { out[idx] = await worker(items[idx]); }
+      catch { out[idx] = null; failed++; }
+      onTick && onTick(++done);
+    }
+  }
+  await Promise.all(Array.from({length: Math.min(size, items.length)}, run));
+  out.failed = failed;
+  return out;
+}
+
+async function gatherMovies() {
+  const title = $("title").value.trim();
+  if (title) {
+    const r = await authFetch("/search/movie", { query: title, include_adult: "false" });
+    return (r.results || []).slice(0, 12);
+  }
+  const src = $("src").value;
+  const pages = parseInt($("pages").value, 10);
+  let movies = [];
+  for (let p = 1; p <= pages; p++) {
+    const r = await authFetch("/movie/" + src, { page: p });
+    movies = movies.concat(r.results || []);
+    if (!r.results || p >= (r.total_pages || 1)) break;
+  }
+  // dedup
+  const seen = new Set();
+  return movies.filter(m => !seen.has(m.id) && seen.add(m.id));
+}
+
+// returns {usDigital, foreign:[{cc,date}], earliest} or null if no foreign digital beats US
+function analyze(rd) {
+  const byCountry = rd.results || [];
+  let usDigital = null;
+  const foreign = [];
+  for (const entry of byCountry) {
+    const digitals = (entry.release_dates || [])
+      .filter(x => x.type === 4 && x.release_date)
+      .map(x => dayKey(x.release_date))
+      .sort();
+    if (!digitals.length) continue;
+    const earliest = digitals[0];
+    if (entry.iso_3166_1 === "US") usDigital = earliest;
+    else foreign.push({ cc: entry.iso_3166_1, date: earliest });
+  }
+  if (!foreign.length) return null;
+  foreign.sort((a,b) => a.date.localeCompare(b.date));
+  const earliest = foreign[0];
+  // keep only foreign releases that beat US (or where US has no digital date yet)
+  const beats = !usDigital || earliest.date < usDigital;
+  if (!beats) return null;
+  return { usDigital, foreign, earliest };
+}
+
+function leadDays(foreignDate, usDate) {
+  if (!usDate) return null;
+  const ms = parseDay(usDate) - parseDay(foreignDate);
+  return Math.round(ms / 86400000);
+}
+
+function render(list) {
+  const board = $("board"), rows = $("rows");
+  rows.innerHTML = "";
+  if (!list.length) {
+    board.hidden = false;
+    rows.innerHTML = '<div class="empty"><b>No early foreign digital releases found</b>None of the scanned films currently have a non-US digital date ahead of the US. Try a different list, more pages, or a specific title.</div>';
+    return;
+  }
+  board.hidden = false;
+  for (const it of list) {
+    const lead = leadDays(it.earliest.date, it.usDigital);
+    const el = document.createElement("div");
+    el.className = "flip";
+    el.tabIndex = 0;
+    el.setAttribute("role", "button");
+    el.setAttribute("aria-expanded", "false");
+    const others = it.foreign.map(f =>
+      `<div class="ctry"><b>${esc(COUNTRY.of(f.cc) || f.cc)}</b><span class="d">${fmt(f.date)}</span></div>`
+    ).join("");
+    el.innerHTML = `
+      <div>
+        <div class="title">${esc(it.title)}<span class="yr">${esc(it.year || "")}</span></div>
+        <div class="dest">${esc(COUNTRY.of(it.earliest.cc) || it.earliest.cc)} <span class="when">· ${fmt(it.earliest.date)}</span></div>
+      </div>
+      <div class="date ${it.usDigital ? "" : "us"}">${it.usDigital ? fmt(it.usDigital) : "—"}</div>
+      <div class="${lead==null ? "lead none" : "lead"}">${lead==null ? "US TBD" : "+" + lead + "d"}</div>
+      <div class="detail">
+        <h4>All foreign digital dates</h4>
+        ${others}
+      </div>`;
+    const toggle = () => {
+      const open = el.classList.toggle("open");
+      el.setAttribute("aria-expanded", open ? "true" : "false");
+    };
+    el.addEventListener("click", toggle);
+    el.addEventListener("keydown", e => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
+    });
+    rows.appendChild(el);
+  }
+}
+
+async function scan() {
+  const key = $("key").value.trim();
+  if (!key) { status.innerHTML = '<span class="err">Enter your TMDB key or token first.</span>'; return; }
+  $("go").disabled = true;
+  status.innerHTML = "Pulling film list…";
+  try {
+    const movies = await gatherMovies();
+    if (!movies.length) { status.innerHTML = '<span class="err">No films returned. Check the title or list.</span>'; $("go").disabled = false; return; }
+    status.innerHTML = `Found ${movies.length} films. Checking release dates…`;
+
+    const results = await pool(movies, 10, async (m) => {
+      const rd = await authFetch(`/movie/${m.id}/release_dates`);
+      const a = analyze(rd);
+      if (!a) return null;
+      return { id:m.id, title:m.title, year:(m.release_date||"").slice(0,4), ...a };
+    }, (done) => { status.innerHTML = `Checking release dates… ${done}/${movies.length}`; });
+
+    let hits = results.filter(Boolean);
+    if ($("upcomingOnly").checked) {
+      const t = today();
+      hits = hits.filter(h => h.earliest.date >= t);
+    }
+    hits.sort((a,b) => a.earliest.date.localeCompare(b.earliest.date));
+
+    const warn = results.failed
+      ? ` <span class="warn">${results.failed} lookup${results.failed===1?"":"s"} failed and were skipped.</span>`
+      : "";
+    status.innerHTML = `<span class="on">Done.</span> ${hits.length} film${hits.length===1?"":"s"} with an early foreign digital release.${warn}`;
+    render(hits);
+  } catch (e) {
+    status.innerHTML = `<span class="err">${esc(e.message)}</span>`;
+  } finally {
+    $("go").disabled = false;
+  }
+}
+
+$("go").addEventListener("click", scan);
+$("key").addEventListener("keydown", e => { if (e.key === "Enter") scan(); });
+$("title").addEventListener("keydown", e => { if (e.key === "Enter") scan(); });
+</script>
+</body>
+</html>
