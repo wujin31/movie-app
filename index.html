@@ -145,26 +145,50 @@
     </div>
     <div class="row three">
       <div>
-        <label for="src">Source list</label>
+        <label for="src">Source</label>
         <select id="src">
-          <option value="now_playing">In theaters now</option>
-          <option value="upcoming" selected>Upcoming</option>
-          <option value="popular">Popular</option>
-          <option value="top_rated">Top rated</option>
+          <option value="discover" selected>🌍 Wide scan — recent foreign digital</option>
+          <option value="now_playing">List · In theaters now</option>
+          <option value="upcoming">List · Upcoming</option>
+          <option value="popular">List · Popular</option>
+          <option value="top_rated">List · Top rated</option>
         </select>
       </div>
       <div>
-        <label for="pages">Pages to scan</label>
+        <label for="pages" id="pagesLabel">Pages per market</label>
         <select id="pages">
-          <option value="1">1 · ~20 films</option>
-          <option value="2" selected>2 · ~40 films</option>
-          <option value="3">3 · ~60 films</option>
-          <option value="5">5 · ~100 films</option>
+          <option value="1">1</option>
+          <option value="2" selected>2</option>
+          <option value="3">3</option>
+          <option value="5">5</option>
         </select>
       </div>
       <div>
         <label for="title">Or search one title</label>
-        <input id="title" type="text" placeholder="overrides the list" spellcheck="false">
+        <input id="title" type="text" placeholder="overrides everything" spellcheck="false">
+      </div>
+    </div>
+    <div class="row three" id="discoverRow">
+      <div>
+        <label for="window">Look back over</label>
+        <select id="window">
+          <option value="3">Last 3 months</option>
+          <option value="6" selected>Last 6 months</option>
+          <option value="12">Last 12 months</option>
+          <option value="24">Last 24 months</option>
+        </select>
+      </div>
+      <div>
+        <label for="maxFilms">Max films to check</label>
+        <select id="maxFilms">
+          <option value="200">200</option>
+          <option value="400" selected>400</option>
+          <option value="800">800</option>
+        </select>
+      </div>
+      <div>
+        <label for="regions">Foreign markets (ISO codes)</label>
+        <input id="regions" type="text" spellcheck="false" value="GB, IE, AU, NZ, CA, DE, FR, IT, ES, NL, SE, NO, DK, FI, PT, BE, AT, CH, BR, MX, IN, JP, KR">
       </div>
     </div>
     <div class="row two">
@@ -261,6 +285,52 @@ async function pool(items, size, worker, onTick) {
   return out;
 }
 
+// shift today's date by N calendar months, returned as a YYYY-MM-DD string
+const shiftMonths = n => {
+  const d = new Date();
+  d.setMonth(d.getMonth() + n);
+  const p = x => String(x).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+};
+
+// Wide scan: ask TMDB Discover for every film with a *digital* release (type 4)
+// in each foreign market inside the date window, pool the requests, dedup into
+// one candidate pool, and cap it so the per-film detail pass stays bounded.
+async function gatherDiscover() {
+  const months = parseInt($("window").value, 10);
+  const pages = parseInt($("pages").value, 10);
+  const cap = parseInt($("maxFilms").value, 10) || 400;
+  const regions = ($("regions").value.trim() || "GB")
+    .split(",").map(s => s.trim().toUpperCase()).filter(Boolean);
+  const gte = shiftMonths(-months);
+  const lte = shiftMonths(2); // include imminent/announced near-future digital
+  const tasks = [];
+  for (const cc of regions) for (let p = 1; p <= pages; p++) tasks.push({ cc, p });
+
+  const pagesRes = await pool(tasks, 8, async ({ cc, p }) => {
+    const r = await authFetch("/discover/movie", {
+      region: cc,
+      with_release_type: 4,
+      "release_date.gte": gte,
+      "release_date.lte": lte,
+      sort_by: "primary_release_date.desc",
+      include_adult: "false",
+      page: p,
+    });
+    return r.results || [];
+  }, done => { status.innerHTML = `Discovering candidates… ${done}/${tasks.length} market-pages across ${regions.length} markets`; });
+
+  const seen = new Set();
+  const movies = [];
+  for (const arr of pagesRes) {
+    if (!arr) continue;
+    for (const m of arr) if (!seen.has(m.id)) { seen.add(m.id); movies.push(m); }
+  }
+  const out = movies.slice(0, cap);
+  out.capped = movies.length > cap;
+  return out;
+}
+
 async function gatherMovies() {
   const title = $("title").value.trim();
   if (title) {
@@ -268,6 +338,7 @@ async function gatherMovies() {
     return (r.results || []).slice(0, 12);
   }
   const src = $("src").value;
+  if (src === "discover") return gatherDiscover();
   const pages = parseInt($("pages").value, 10);
   let movies = [];
   for (let p = 1; p <= pages; p++) {
@@ -384,7 +455,10 @@ async function scan() {
     const warn = results.failed
       ? ` <span class="warn">${results.failed} lookup${results.failed===1?"":"s"} failed and were skipped.</span>`
       : "";
-    status.innerHTML = `<span class="on">Done.</span> ${hits.length} film${hits.length===1?"":"s"} with an early foreign digital release.${warn}`;
+    const capNote = movies.capped
+      ? ` <span class="warn">Candidate pool hit the ${movies.length}-film cap — narrow the window or markets, or raise "Max films" for fuller coverage.</span>`
+      : "";
+    status.innerHTML = `<span class="on">Done.</span> Scanned ${movies.length} films, found ${hits.length} with an early foreign digital release.${warn}${capNote}`;
     render(hits);
   } catch (e) {
     status.innerHTML = `<span class="err">${esc(e.message)}</span>`;
@@ -392,6 +466,15 @@ async function scan() {
     $("go").disabled = false;
   }
 }
+
+// show the Discover-only controls and relabel the pages selector by mode
+function syncMode() {
+  const isDiscover = $("src").value === "discover";
+  $("discoverRow").hidden = !isDiscover;
+  $("pagesLabel").textContent = isDiscover ? "Pages per market" : "Pages to scan";
+}
+$("src").addEventListener("change", syncMode);
+syncMode();
 
 $("go").addEventListener("click", scan);
 $("key").addEventListener("keydown", e => { if (e.key === "Enter") scan(); });
