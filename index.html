@@ -61,8 +61,8 @@
   input:focus,select:focus{outline:2px solid var(--amber);outline-offset:1px;border-color:transparent}
   .hint{font-size:12px;color:var(--muted-2);margin:6px 0 0}
   .hint a{color:var(--amber-dim)}
-  .checkline{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--muted);font-family:var(--sans)}
-  .checkline input{width:auto}
+  .presetnote{font-size:12.5px;color:var(--muted);margin:0;align-self:center;font-family:var(--sans)}
+  code{font-family:var(--mono);font-size:.92em;color:var(--amber-dim)}
 
   button.scan{
     background:var(--amber);color:#1a1205;border:none;border-radius:9px;
@@ -99,6 +99,7 @@
 
   .title{font-weight:620;font-size:15px;letter-spacing:-.005em}
   .title .yr{color:var(--muted-2);font-weight:400;font-size:13px;margin-left:6px}
+  .title .rate{color:var(--amber-dim);font-weight:600;font-size:12px;margin-left:8px;font-family:var(--mono)}
   .dest{font-family:var(--mono);font-size:12.5px;color:var(--amber);margin-top:3px;letter-spacing:.04em}
   .dest .when{color:var(--muted)}
   .dest .live{color:var(--green);margin-left:6px;font-weight:680}
@@ -132,74 +133,41 @@
   <header>
     <p class="kicker">Departures · Digital</p>
     <h1>Early Digital Board</h1>
-    <p class="sub">Scans TMDB for films where a non-US market gets a digital release <em>before</em> the United States does. Sorted by the soonest foreign departure. Your key stays in your browser — nothing is sent anywhere except TMDB.</p>
+    <p class="sub">Scans TMDB for films where a non-US market gets a digital release <em>before</em> the United States does. Pick a view, pick a sort, scan. Your key stays in your browser — nothing is sent anywhere except TMDB.</p>
   </header>
 
   <div class="controls">
     <div class="row">
       <div>
         <label for="key">TMDB API key or read-access token</label>
-        <input id="key" type="password" placeholder="v3 key (abc123…) or v4 token (eyJ…)" autocomplete="off" spellcheck="false">
-        <p class="hint">Get one free under Settings → API at <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">themoviedb.org</a>. Either the v3 key or the longer v4 read token works.</p>
+        <input id="key" type="password" placeholder="v3 key (abc123…) or v4 token (eyJ…)" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <p class="hint">Free under Settings → API at <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">themoviedb.org</a>. The v4 read token (<code>eyJ…</code>) is preferred — it travels in a header, not the URL. Your key stays in your browser and is sent only to TMDB.</p>
       </div>
     </div>
     <div class="row three">
       <div>
-        <label for="src">Source</label>
-        <select id="src">
-          <option value="discover" selected>🌍 Wide scan — recent foreign digital</option>
-          <option value="now_playing">List · In theaters now</option>
-          <option value="upcoming">List · Upcoming</option>
-          <option value="popular">List · Popular</option>
-          <option value="top_rated">List · Top rated</option>
+        <label for="template">View</label>
+        <select id="template">
+          <option value="abroad_now" selected>Streaming abroad now · not yet in US</option>
+          <option value="soon_abroad">Dropping soon abroad · before the US</option>
+          <option value="all_early">All · foreign digital beats the US</option>
         </select>
       </div>
       <div>
-        <label for="pages" id="pagesLabel">Pages per market</label>
-        <select id="pages">
-          <option value="1">1</option>
-          <option value="2" selected>2</option>
-          <option value="3">3</option>
-          <option value="5">5</option>
+        <label for="sort">Sort by</label>
+        <select id="sort">
+          <option value="popularity" selected>Popularity</option>
+          <option value="rating">TMDB rating</option>
+          <option value="date">Release date</option>
         </select>
       </div>
       <div>
         <label for="title">Or search one title</label>
-        <input id="title" type="text" placeholder="overrides everything" spellcheck="false">
-      </div>
-    </div>
-    <div class="row three" id="discoverRow">
-      <div>
-        <label for="window">Look back over</label>
-        <select id="window">
-          <option value="3">Last 3 months</option>
-          <option value="6" selected>Last 6 months</option>
-          <option value="12">Last 12 months</option>
-          <option value="24">Last 24 months</option>
-        </select>
-      </div>
-      <div>
-        <label for="maxFilms">Max films to check</label>
-        <select id="maxFilms">
-          <option value="200">200</option>
-          <option value="400" selected>400</option>
-          <option value="800">800</option>
-        </select>
-      </div>
-      <div>
-        <label for="regions">Foreign markets (ISO codes)</label>
-        <input id="regions" type="text" spellcheck="false" value="GB, IE, AU, NZ, CA, DE, FR, IT, ES, NL, SE, NO, DK, FI, PT, BE, AT, CH, BR, MX, IN, JP, KR">
+        <input id="title" type="text" placeholder="overrides the view" spellcheck="false" autocapitalize="off" autocorrect="off">
       </div>
     </div>
     <div class="row two">
-      <div>
-        <label for="filter">Show</label>
-        <select id="filter">
-          <option value="abroadNow" selected>Streaming abroad now · not yet in US</option>
-          <option value="notYetUS">Not yet on US digital (incl. upcoming abroad)</option>
-          <option value="all">All foreign-before-US</option>
-        </select>
-      </div>
+      <p class="presetnote" id="presetNote"></p>
       <button class="scan" id="go">Scan the board</button>
     </div>
   </div>
@@ -300,19 +268,44 @@ const shiftMonths = n => {
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
 };
 
+// Foreign markets that tend to get early digital releases. Baked in rather
+// than exposed as a control — the templates are the whole knobset now.
+const MARKETS = ["GB","IE","AU","NZ","CA","DE","FR","IT","ES","NL","SE","NO","DK","FI","PT","BE","AT","CH","BR","MX","IN","JP","KR"];
+const PAGES_PER_MARKET = 2;
+const MAX_FILMS = 500;
+
+// Each view is a self-contained preset: the Discover date window to pull
+// candidates from, and the keep() test applied after the per-film analysis.
+// t is today's YYYY-MM-DD; h.earliest.date is the soonest foreign digital date.
+const TEMPLATES = {
+  abroad_now: {
+    note: "Already out digitally somewhere abroad, with no US digital release yet.",
+    back: 6, ahead: 1,
+    keep: (h, t) => h.earliest.date <= t && (!h.usDigital || h.usDigital > t),
+    dateDir: -1, // newest foreign release first
+  },
+  soon_abroad: {
+    note: "Foreign digital release still ahead, landing before the US.",
+    back: 1, ahead: 4,
+    keep: (h, t) => h.earliest.date >= t && (!h.usDigital || h.usDigital > t),
+    dateDir: 1, // soonest first
+  },
+  all_early: {
+    note: "Every film where a foreign digital release beats the US — past or future.",
+    back: 12, ahead: 4,
+    keep: () => true,
+    dateDir: 1,
+  },
+};
+
 // Wide scan: ask TMDB Discover for every film with a *digital* release (type 4)
-// in each foreign market inside the date window, pool the requests, dedup into
+// in each market inside the template's window, pool the requests, dedup into
 // one candidate pool, and cap it so the per-film detail pass stays bounded.
-async function gatherDiscover() {
-  const months = parseInt($("window").value, 10);
-  const pages = parseInt($("pages").value, 10);
-  const cap = parseInt($("maxFilms").value, 10) || 400;
-  const regions = ($("regions").value.trim() || "GB")
-    .split(",").map(s => s.trim().toUpperCase()).filter(Boolean);
-  const gte = shiftMonths(-months);
-  const lte = shiftMonths(2); // include imminent/announced near-future digital
+async function gatherDiscover(tpl) {
+  const gte = shiftMonths(-tpl.back);
+  const lte = shiftMonths(tpl.ahead);
   const tasks = [];
-  for (const cc of regions) for (let p = 1; p <= pages; p++) tasks.push({ cc, p });
+  for (const cc of MARKETS) for (let p = 1; p <= PAGES_PER_MARKET; p++) tasks.push({ cc, p });
 
   const pagesRes = await pool(tasks, 8, async ({ cc, p }) => {
     const r = await authFetch("/discover/movie", {
@@ -320,12 +313,12 @@ async function gatherDiscover() {
       with_release_type: 4,
       "release_date.gte": gte,
       "release_date.lte": lte,
-      sort_by: "primary_release_date.desc",
+      sort_by: "popularity.desc",
       include_adult: "false",
       page: p,
     });
     return r.results || [];
-  }, done => { status.innerHTML = `Discovering candidates… ${done}/${tasks.length} market-pages across ${regions.length} markets`; });
+  }, done => { status.innerHTML = `Discovering candidates… ${done}/${tasks.length} market-pages across ${MARKETS.length} markets`; });
 
   const seen = new Set();
   const movies = [];
@@ -333,29 +326,30 @@ async function gatherDiscover() {
     if (!arr) continue;
     for (const m of arr) if (!seen.has(m.id)) { seen.add(m.id); movies.push(m); }
   }
-  const out = movies.slice(0, cap);
-  out.capped = movies.length > cap;
+  const out = movies.slice(0, MAX_FILMS);
+  out.capped = movies.length > MAX_FILMS;
   return out;
 }
 
-async function gatherMovies() {
+async function gatherMovies(tpl) {
   const title = $("title").value.trim();
   if (title) {
     const r = await authFetch("/search/movie", { query: title, include_adult: "false" });
     return (r.results || []).slice(0, 12);
   }
-  const src = $("src").value;
-  if (src === "discover") return gatherDiscover();
-  const pages = parseInt($("pages").value, 10);
-  let movies = [];
-  for (let p = 1; p <= pages; p++) {
-    const r = await authFetch("/movie/" + src, { page: p });
-    movies = movies.concat(r.results || []);
-    if (!r.results || p >= (r.total_pages || 1)) break;
+  return gatherDiscover(tpl);
+}
+
+// Sort the board. Rating uses TMDB's own vote_average (not IMDb — see notes),
+// with vote count as a tiebreak so a lone 10/10 doesn't top a well-rated film.
+function sortHits(hits, mode, tpl) {
+  if (mode === "popularity") {
+    hits.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+  } else if (mode === "rating") {
+    hits.sort((a, b) => (b.rating || 0) - (a.rating || 0) || (b.votes || 0) - (a.votes || 0));
+  } else {
+    hits.sort((a, b) => tpl.dateDir * a.earliest.date.localeCompare(b.earliest.date));
   }
-  // dedup
-  const seen = new Set();
-  return movies.filter(m => !seen.has(m.id) && seen.add(m.id));
 }
 
 // returns {usDigital, foreign:[{cc,date}], earliest} or null if no foreign digital beats US
@@ -393,7 +387,7 @@ function render(list) {
   rows.innerHTML = "";
   if (!list.length) {
     board.hidden = false;
-    rows.innerHTML = '<div class="empty"><b>No early foreign digital releases found</b>None of the scanned films currently have a non-US digital date ahead of the US. Try a different list, more pages, or a specific title.</div>';
+    rows.innerHTML = '<div class="empty"><b>No early foreign digital releases found</b>Nothing in this view right now. Try another view, or search a specific title.</div>';
     return;
   }
   board.hidden = false;
@@ -411,7 +405,7 @@ function render(list) {
     ).join("");
     el.innerHTML = `
       <div>
-        <div class="title">${esc(it.title)}<span class="yr">${esc(it.year || "")}</span></div>
+        <div class="title">${esc(it.title)}<span class="yr">${esc(it.year || "")}</span>${it.rating ? `<span class="rate">★ ${it.rating.toFixed(1)}</span>` : ""}</div>
         <div class="dest">${esc(COUNTRY.of(it.earliest.cc) || it.earliest.cc)} <span class="when">· ${fmt(it.earliest.date)}</span>${liveAbroad ? '<span class="live">· out now</span>' : ""}</div>
       </div>
       <div class="date ${it.usDigital ? "" : "us"}">${it.usDigital ? fmt(it.usDigital) : "—"}</div>
@@ -436,42 +430,33 @@ async function scan() {
   const key = $("key").value.trim();
   if (!key) { status.innerHTML = '<span class="err">Enter your TMDB key or token first.</span>'; return; }
   $("go").disabled = true;
-  status.innerHTML = "Pulling film list…";
+  status.innerHTML = "Pulling candidates…";
   try {
-    const movies = await gatherMovies();
-    if (!movies.length) { status.innerHTML = '<span class="err">No films returned. Check the title or list.</span>'; $("go").disabled = false; return; }
+    const tpl = TEMPLATES[$("template").value];
+    const movies = await gatherMovies(tpl);
+    if (!movies.length) { status.innerHTML = '<span class="err">No films returned. Try another view or a specific title.</span>'; $("go").disabled = false; return; }
     status.innerHTML = `Found ${movies.length} films. Checking release dates…`;
 
     const results = await pool(movies, 10, async (m) => {
       const rd = await authFetch(`/movie/${m.id}/release_dates`);
       const a = analyze(rd);
       if (!a) return null;
-      return { id:m.id, title:m.title, year:(m.release_date||"").slice(0,4), ...a };
+      return {
+        id: m.id, title: m.title, year: (m.release_date || "").slice(0, 4),
+        popularity: m.popularity || 0, rating: m.vote_average || 0, votes: m.vote_count || 0,
+        ...a,
+      };
     }, (done) => { status.innerHTML = `Checking release dates… ${done}/${movies.length}`; });
 
-    let hits = results.filter(Boolean);
     const t = today();
-    const mode = $("filter").value;
-    if (mode === "abroadNow") {
-      // Out digitally somewhere abroad already (earliest foreign date is past),
-      // and not yet streamable in the US (no US digital date, or it's ahead).
-      hits = hits.filter(h => h.earliest.date <= t && (!h.usDigital || h.usDigital > t));
-    } else if (mode === "notYetUS") {
-      // Anything not yet on US digital, including foreign releases still ahead.
-      hits = hits.filter(h => !h.usDigital || h.usDigital >= t);
-    }
-    // 'all' applies no date filter — every foreign-before-US hit.
-    // Available-now view reads best newest-first; the forward-looking views
-    // read best soonest-first.
-    hits.sort((a,b) => mode === "abroadNow"
-      ? b.earliest.date.localeCompare(a.earliest.date)
-      : a.earliest.date.localeCompare(b.earliest.date));
+    const hits = results.filter(Boolean).filter(h => tpl.keep(h, t));
+    sortHits(hits, $("sort").value, tpl);
 
     const warn = results.failed
       ? ` <span class="warn">${results.failed} lookup${results.failed===1?"":"s"} failed and were skipped.</span>`
       : "";
     const capNote = movies.capped
-      ? ` <span class="warn">Candidate pool hit the ${movies.length}-film cap — narrow the window or markets, or raise "Max films" for fuller coverage.</span>`
+      ? ` <span class="warn">Candidate pool hit the ${movies.length}-film cap; some titles weren't checked.</span>`
       : "";
     status.innerHTML = `<span class="on">Done.</span> Scanned ${movies.length} films, found ${hits.length} with an early foreign digital release.${warn}${capNote}`;
     render(hits);
@@ -482,14 +467,12 @@ async function scan() {
   }
 }
 
-// show the Discover-only controls and relabel the pages selector by mode
-function syncMode() {
-  const isDiscover = $("src").value === "discover";
-  $("discoverRow").hidden = !isDiscover;
-  $("pagesLabel").textContent = isDiscover ? "Pages per market" : "Pages to scan";
+// show a one-line description of the selected view
+function syncTemplate() {
+  $("presetNote").textContent = TEMPLATES[$("template").value].note;
 }
-$("src").addEventListener("change", syncMode);
-syncMode();
+$("template").addEventListener("change", syncTemplate);
+syncTemplate();
 
 $("go").addEventListener("click", scan);
 $("key").addEventListener("keydown", e => { if (e.key === "Enter") scan(); });
