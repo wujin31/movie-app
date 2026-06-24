@@ -192,7 +192,14 @@
       </div>
     </div>
     <div class="row two">
-      <label class="checkline"><input type="checkbox" id="notYetUS" checked> Only show films not yet on US digital (US date is TBD or still ahead)</label>
+      <div>
+        <label for="filter">Show</label>
+        <select id="filter">
+          <option value="abroadNow" selected>Streaming abroad now · not yet in US</option>
+          <option value="notYetUS">Not yet on US digital (incl. upcoming abroad)</option>
+          <option value="all">All foreign-before-US</option>
+        </select>
+      </div>
       <button class="scan" id="go">Scan the board</button>
     </div>
   </div>
@@ -443,14 +450,22 @@ async function scan() {
     }, (done) => { status.innerHTML = `Checking release dates… ${done}/${movies.length}`; });
 
     let hits = results.filter(Boolean);
-    if ($("notYetUS").checked) {
-      // The point of the tool: films you can't legally stream in the US yet.
-      // Keep ones with no US digital date, or a US date that's still ahead.
-      // A *past* foreign date is good here — it means it's already out abroad.
-      const t = today();
+    const t = today();
+    const mode = $("filter").value;
+    if (mode === "abroadNow") {
+      // Out digitally somewhere abroad already (earliest foreign date is past),
+      // and not yet streamable in the US (no US digital date, or it's ahead).
+      hits = hits.filter(h => h.earliest.date <= t && (!h.usDigital || h.usDigital > t));
+    } else if (mode === "notYetUS") {
+      // Anything not yet on US digital, including foreign releases still ahead.
       hits = hits.filter(h => !h.usDigital || h.usDigital >= t);
     }
-    hits.sort((a,b) => a.earliest.date.localeCompare(b.earliest.date));
+    // 'all' applies no date filter — every foreign-before-US hit.
+    // Available-now view reads best newest-first; the forward-looking views
+    // read best soonest-first.
+    hits.sort((a,b) => mode === "abroadNow"
+      ? b.earliest.date.localeCompare(a.earliest.date)
+      : a.earliest.date.localeCompare(b.earliest.date));
 
     const warn = results.failed
       ? ` <span class="warn">${results.failed} lookup${results.failed===1?"":"s"} failed and were skipped.</span>`
