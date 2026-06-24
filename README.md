@@ -34,9 +34,14 @@ The **View** selector is the main control — each is a self-contained preset:
 
 | View | What it shows |
 |------|---------------|
-| **Streaming abroad now · not yet in US** *(default)* | Earliest foreign digital date is already in the **past** (available somewhere abroad now) **and** the US has no past digital date (TBD or still ahead). |
-| **Dropping soon abroad · before the US** | Foreign digital release still **ahead**, landing before the US (or with no US date yet). |
-| **All · foreign digital beats the US** | Every hit where a foreign digital date beats the US, past or future. |
+| **Streaming abroad now · not yet in US** *(default)* | Recent films whose foreign digital release happened in the **last few months** **and** that have no past US digital date. |
+| **Dropping soon abroad · before the US** | Recent films with a foreign digital release still **ahead**, landing before the US (or with no US date yet). |
+| **All · foreign digital beats the US** | Every film from roughly the **last 3 years** where a foreign digital date beats the US, past or future. |
+
+Each view applies a **recency gate** (the film's own release date must be recent)
+so the board surfaces genuinely new releases — not old catalog titles that were
+merely re-added to a foreign streamer, which also tend to be the ones already on
+US digital with no date entered in TMDB.
 
 ## Sort
 

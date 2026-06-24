@@ -275,25 +275,31 @@ const PAGES_PER_MARKET = 2;
 const MAX_FILMS = 500;
 
 // Each view is a self-contained preset: the Discover date window to pull
-// candidates from, and the keep() test applied after the per-film analysis.
-// t is today's YYYY-MM-DD; h.earliest.date is the soonest foreign digital date.
+// candidates from, a recency gate, and the keep() test applied after analysis.
+// keep() receives the hit and a context: c.t = today, c.winStart = start of the
+// look-back window, c.ageCut = oldest allowed primary-release date.
+//   maxAge guards against old catalog titles (e.g. a 2015 film newly added to a
+//   foreign streamer) and against films that are "missing" a US digital date in
+//   TMDB only because nobody entered it — for old films that's almost never a
+//   real gap, so we don't trust it.
 const TEMPLATES = {
   abroad_now: {
-    note: "Already out digitally somewhere abroad, with no US digital release yet.",
-    back: 6, ahead: 1,
-    keep: (h, t) => h.earliest.date <= t && (!h.usDigital || h.usDigital > t),
+    note: "Recent film, out digitally abroad in the last few months, no US digital yet.",
+    back: 6, ahead: 1, maxAge: 18,
+    // foreign release is recent (within the window) and already past; US absent or ahead.
+    keep: (h, c) => h.earliest.date <= c.t && h.earliest.date >= c.winStart && (!h.usDigital || h.usDigital > c.t),
     dateDir: -1, // newest foreign release first
   },
   soon_abroad: {
-    note: "Foreign digital release still ahead, landing before the US.",
-    back: 1, ahead: 4,
-    keep: (h, t) => h.earliest.date >= t && (!h.usDigital || h.usDigital > t),
+    note: "Recent film with a foreign digital release still ahead, landing before the US.",
+    back: 1, ahead: 4, maxAge: 18,
+    keep: (h, c) => h.earliest.date >= c.t && (!h.usDigital || h.usDigital > c.t),
     dateDir: 1, // soonest first
   },
   all_early: {
-    note: "Every film where a foreign digital release beats the US — past or future.",
-    back: 12, ahead: 4,
-    keep: () => true,
+    note: "Every film from the last ~3 years where a foreign digital release beats the US.",
+    back: 12, ahead: 4, maxAge: 36,
+    keep: () => true, // analyze() already guarantees foreign beats US
     dateDir: 1,
   },
 };
@@ -443,13 +449,20 @@ async function scan() {
       if (!a) return null;
       return {
         id: m.id, title: m.title, year: (m.release_date || "").slice(0, 4),
+        released: m.release_date || "",
         popularity: m.popularity || 0, rating: m.vote_average || 0, votes: m.vote_count || 0,
         ...a,
       };
     }, (done) => { status.innerHTML = `Checking release dates… ${done}/${movies.length}`; });
 
-    const t = today();
-    const hits = results.filter(Boolean).filter(h => tpl.keep(h, t));
+    const ctx = {
+      t: today(),
+      winStart: shiftMonths(-tpl.back),
+      ageCut: tpl.maxAge ? shiftMonths(-tpl.maxAge) : null,
+    };
+    const hits = results.filter(Boolean).filter(h =>
+      (!ctx.ageCut || (h.released && h.released >= ctx.ageCut)) && tpl.keep(h, ctx)
+    );
     sortHits(hits, $("sort").value, tpl);
 
     const warn = results.failed
