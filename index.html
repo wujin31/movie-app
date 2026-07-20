@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Early Digital Board — foreign digital releases that beat the US</title>
+<title>Purchase-Only Radar — films that fell off US streaming</title>
 <style>
   :root{
     --board:#0c1014;
@@ -81,13 +81,13 @@
   /* board */
   .board{margin-top:18px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--board-2)}
   .board-head{
-    display:grid;grid-template-columns:1fr 92px 96px;gap:10px;
+    display:grid;grid-template-columns:1fr 112px 68px;gap:10px;
     padding:12px 16px;border-bottom:1px solid var(--line);
     font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted-2)
   }
   .board-head .r{text-align:right}
   .flip{
-    display:grid;grid-template-columns:1fr 92px 96px;gap:10px;
+    display:grid;grid-template-columns:1fr 112px 68px;gap:10px;
     padding:14px 16px;border-bottom:1px solid var(--line);align-items:center;cursor:pointer;
     animation:fade .35s ease both
   }
@@ -99,12 +99,11 @@
 
   .title{font-weight:620;font-size:15px;letter-spacing:-.005em}
   .title .yr{color:var(--muted-2);font-weight:400;font-size:13px;margin-left:6px}
-  .title .rate{color:var(--amber-dim);font-weight:600;font-size:12px;margin-left:8px;font-family:var(--mono)}
   .dest{font-family:var(--mono);font-size:12.5px;color:var(--amber);margin-top:3px;letter-spacing:.04em}
   .dest .when{color:var(--muted)}
-  .dest .live{color:var(--green);margin-left:6px;font-weight:680}
   .date{font-family:var(--mono);font-size:13px;text-align:right;color:var(--ink);letter-spacing:.02em}
-  .date.us{color:var(--muted-2)}
+  .date.none{color:var(--amber);font-size:11px;font-weight:600;letter-spacing:.06em}
+  .date.niche{color:var(--muted);font-size:11.5px;line-height:1.35}
   .lead{
     font-family:var(--mono);font-size:13px;text-align:right;font-weight:680;
     color:var(--green);letter-spacing:.02em
@@ -131,9 +130,9 @@
 <body>
 <div class="wrap">
   <header>
-    <p class="kicker">Departures · Digital</p>
-    <h1>Early Digital Board</h1>
-    <p class="sub">Finds films you can stream, rent, or buy digitally <em>outside</em> the US right now but <em>not</em> inside it — using live availability data from JustWatch (via TMDB). Pick a view, pick a sort, scan. Your key stays in your browser — nothing is sent anywhere except TMDB.</p>
+    <p class="kicker">Catalog · US Digital</p>
+    <h1>Purchase-Only Radar</h1>
+    <p class="sub">Finds popular, well-rated films that are <em>not</em> on any major US streaming subscription — only available to rent or buy digitally. Think Oppenheimer: in every store, on no service. Live availability from JustWatch (via TMDB). Your key stays in your browser — nothing is sent anywhere except TMDB.</p>
   </header>
 
   <div class="controls">
@@ -148,9 +147,8 @@
       <div>
         <label for="template">View</label>
         <select id="template">
-          <option value="stream_abroad" selected>On streaming abroad · not in US</option>
-          <option value="rent_abroad">Rent/buy abroad · not in US</option>
-          <option value="any_abroad">Any digital abroad · not in US</option>
+          <option value="fallen_off" selected>Fallen off the majors · catalog</option>
+          <option value="not_landed">Never landed · recent releases</option>
         </select>
       </div>
       <div>
@@ -158,12 +156,12 @@
         <select id="sort">
           <option value="popularity" selected>Popularity</option>
           <option value="rating">TMDB rating</option>
-          <option value="markets">Most markets</option>
+          <option value="year">Year · newest first</option>
         </select>
       </div>
       <div>
-        <label for="title">Or search one title</label>
-        <input id="title" type="text" placeholder="overrides the view" spellcheck="false" autocapitalize="off" autocorrect="off">
+        <label for="title">Or check one title</label>
+        <input id="title" type="text" placeholder="e.g. Oppenheimer" spellcheck="false" autocapitalize="off" autocorrect="off">
       </div>
     </div>
     <div class="row two">
@@ -176,25 +174,21 @@
 
   <div class="board" id="board" hidden>
     <div class="board-head">
-      <span>Film · where to watch abroad</span>
-      <span class="r">US</span>
-      <span class="r">Markets</span>
+      <span>Film · where to rent or buy</span>
+      <span class="r">Streaming</span>
+      <span class="r">★ TMDB</span>
     </div>
     <div id="rows"></div>
   </div>
 
   <footer>
-    This product uses the TMDB API but is not endorsed or certified by TMDB. Streaming availability is provided by <a href="https://www.justwatch.com/" target="_blank" rel="noopener">JustWatch</a> via TMDB and reflects current providers, which change often and vary by storefront — confirm before relying on it. Availability ≠ legality; check your own region's rules.
+    This product uses the TMDB API but is not endorsed or certified by TMDB. Streaming availability is provided by <a href="https://www.justwatch.com/" target="_blank" rel="noopener">JustWatch</a> via TMDB and reflects current providers, which change often — titles rotate on and off services all the time, so confirm on the storefront before buying. "Majors" = Netflix, Prime Video, Disney+, Hulu, HBO Max, Paramount+, Peacock, Apple TV+.
   </footer>
 </div>
 
 <script>
 const $ = id => document.getElementById(id);
 const status = $("status");
-const COUNTRY = (() => {
-  try { return new Intl.DisplayNames(["en"], { type: "region" }); }
-  catch { return { of: c => c }; }
-})();
 
 // escape untrusted strings (TMDB titles can contain & < > etc.) before innerHTML
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => (
@@ -248,50 +242,63 @@ const shiftMonths = n => {
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
 };
 
-// Foreign markets we discover candidates from and surface availability for.
-const MARKETS = ["GB","IE","AU","NZ","CA","DE","FR","IT","ES","NL","SE","NO","DK","FI","PT","BE","AT","CH","BR","MX","IN","JP","KR"];
-const PAGES_PER_MARKET = 2;
-const MAX_FILMS = 500;
-const marketRank = cc => { const i = MARKETS.indexOf(cc); return i < 0 ? 999 : i; };
+// The major US subscription streamers. Matched as lowercase substrings against
+// provider names in the US flatrate bucket, so channel variants ("Paramount
+// Plus Amazon Channel", "Netflix Standard with Ads") count too. The flatrate
+// bucket never contains the Apple/Amazon rent-buy storefronts, so "apple tv"
+// and "prime video" are safe there. "max" is matched on a word boundary so
+// Cinemax/MGM Plus don't false-positive.
+const MAJORS = ["netflix", "prime video", "disney", "hulu", "hbo", "paramount", "peacock", "apple tv"];
+const isMajor = name => {
+  const n = String(name).toLowerCase();
+  return MAJORS.some(k => n.includes(k)) || /\bmax\b/.test(n);
+};
 
-// Each view is a monetization preset. types = which JustWatch buckets count
-// (flatrate = on a subscription, rent, buy). maxAge gates on the film's own
-// primary release date so the board stays current instead of dredging up
-// catalog titles that were merely re-added to a foreign streamer.
+const MAX_FILMS = 500;
+const LANDED_CUTOFF = 18; // months — the typical theatrical→streaming window
+
+// The two views share one predicate (US rent/buy exists, no major US streamer)
+// and differ only in the Discover window and quality gates. Older films get a
+// higher vote floor plus a second rating-sorted pass so the catalog view
+// surfaces well-loved titles, not just currently-trending ones.
 const TEMPLATES = {
-  stream_abroad: {
-    note: "On a streaming subscription somewhere abroad, but not on any US subscription.",
-    types: ["flatrate"], maxAge: 24, label: "Stream",
+  fallen_off: {
+    note: "Older, well-rated films you can only rent or buy — no major US streamer carries them.",
+    dateParam: "primary_release_date.lte",
+    minVotes: 500,
+    sorts: ["popularity.desc", "vote_average.desc"],
+    pages: 13,
   },
-  rent_abroad: {
-    note: "Available to rent or buy abroad, but not in the US.",
-    types: ["rent", "buy"], maxAge: 24, label: "Rent/Buy",
-  },
-  any_abroad: {
-    note: "Streamable, rentable, or buyable abroad, but not available in the US.",
-    types: ["flatrate", "rent", "buy"], maxAge: 36, label: "Digital",
+  not_landed: {
+    note: "Recent releases already on US digital storefronts, but still not on any major streamer.",
+    dateParam: "primary_release_date.gte",
+    minVotes: 200,
+    sorts: ["popularity.desc"],
+    pages: 15,
   },
 };
 
-// Pull recent films that are actually available via a provider in each market
-// right now, pool the requests, dedup into one candidate pool, and cap it.
+// Pull films currently rentable/buyable in the US inside the view's window,
+// pool the requests, dedup into one candidate pool, and cap it. Discover can't
+// express "NOT on a streamer", so analyzeUS does that half of the filtering.
 async function gatherDiscover(tpl) {
-  const gte = shiftMonths(-tpl.maxAge);
-  const monet = tpl.types.join(","); // comma = OR across monetization types
+  const cutoff = shiftMonths(-LANDED_CUTOFF);
   const tasks = [];
-  for (const cc of MARKETS) for (let p = 1; p <= PAGES_PER_MARKET; p++) tasks.push({ cc, p });
+  for (const sort of tpl.sorts) for (let p = 1; p <= tpl.pages; p++) tasks.push({ sort, p });
 
-  const pagesRes = await pool(tasks, 8, async ({ cc, p }) => {
+  const pagesRes = await pool(tasks, 8, async ({ sort, p }) => {
     const r = await authFetch("/discover/movie", {
-      watch_region: cc,
-      with_watch_monetization_types: monet,
-      "primary_release_date.gte": gte,
-      sort_by: "popularity.desc",
+      watch_region: "US",
+      with_watch_monetization_types: "rent|buy", // pipe = OR
+      [tpl.dateParam]: cutoff,
+      "vote_count.gte": tpl.minVotes,
+      "vote_average.gte": 6.5,
+      sort_by: sort,
       include_adult: "false",
       page: p,
     });
     return r.results || [];
-  }, done => { status.innerHTML = `Finding films available abroad… ${done}/${tasks.length} market-pages`; });
+  }, done => { status.innerHTML = `Pulling the US digital catalog… ${done}/${tasks.length} pages`; });
 
   const seen = new Set();
   const movies = [];
@@ -313,33 +320,24 @@ async function gatherMovies(tpl) {
   return gatherDiscover(tpl);
 }
 
-// Inspect a film's live watch/providers. Returns the foreign markets where it's
-// available in the focus monetization types, or null if it's available in the
-// US in those types (the whole point is films you *can't* get here) or nowhere
-// abroad. Provider data is JustWatch via TMDB.
-function analyzeProviders(pr, types) {
-  const res = pr.results || {};
-  const namesFor = entry => {
-    const out = [];
-    for (const tp of types) for (const p of (entry[tp] || [])) out.push(p.provider_name);
-    return [...new Set(out)];
-  };
-  const us = res.US;
-  if (us && namesFor(us).length) return null; // already available in the US
+// Inspect a film's live US providers (JustWatch via TMDB). A hit means: you
+// can rent or buy it digitally, but no major subscription service carries it.
+// Niche subscriptions (Starz, Criterion…) and free-with-ads services don't
+// disqualify — they're reported so the row can say "only on Starz".
+function analyzeUS(pr) {
+  const us = (pr.results || {}).US;
+  if (!us) return null;
+  const names = (...buckets) =>
+    [...new Set(buckets.flatMap(b => (us[b] || []).map(p => p.provider_name)))];
 
-  const foreign = [];
-  const tally = {};
-  for (const cc in res) {
-    if (cc === "US") continue;
-    const names = namesFor(res[cc]);
-    if (!names.length) continue;
-    foreign.push({ cc, providers: names });
-    for (const n of names) tally[n] = (tally[n] || 0) + 1;
-  }
-  if (!foreign.length) return null;
-  foreign.sort((a, b) => marketRank(a.cc) - marketRank(b.cc) || a.cc.localeCompare(b.cc));
-  const allProviders = Object.keys(tally).sort((a, b) => tally[b] - tally[a]);
-  return { foreign, marketCount: foreign.length, allProviders };
+  const rent = names("rent"), buy = names("buy");
+  const rentBuy = [...new Set([...rent, ...buy])];
+  if (!rentBuy.length) return null; // not purchasable digitally — different problem
+
+  const flat = names("flatrate");
+  if (flat.some(isMajor)) return null; // it streams on a major — not fallen off
+
+  return { rent, buy, rentBuy, nicheFlat: flat, freeAds: names("ads", "free") };
 }
 
 // Sort the board. Rating uses TMDB's own vote_average (not IMDb — see notes),
@@ -347,8 +345,8 @@ function analyzeProviders(pr, types) {
 function sortHits(hits, mode) {
   if (mode === "rating") {
     hits.sort((a, b) => (b.rating || 0) - (a.rating || 0) || (b.votes || 0) - (a.votes || 0));
-  } else if (mode === "markets") {
-    hits.sort((a, b) => (b.marketCount || 0) - (a.marketCount || 0) || (b.popularity || 0) - (a.popularity || 0));
+  } else if (mode === "year") {
+    hits.sort((a, b) => String(b.year).localeCompare(String(a.year)) || (b.popularity || 0) - (a.popularity || 0));
   } else {
     hits.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
   }
@@ -359,7 +357,7 @@ function render(list) {
   rows.innerHTML = "";
   if (!list.length) {
     board.hidden = false;
-    rows.innerHTML = '<div class="empty"><b>Nothing found in this view</b>No films are currently available abroad-but-not-in-US for this view. Try another view, or search a specific title.</div>';
+    rows.innerHTML = '<div class="empty"><b>Nothing found</b>No purchase-only films matched this view. Try the other view, or check a specific title.</div>';
     return;
   }
   board.hidden = false;
@@ -370,24 +368,33 @@ function render(list) {
     el.setAttribute("role", "button");
     el.setAttribute("aria-expanded", "false");
 
-    // top providers (most widely available first), then a +N overflow
-    const provs = it.allProviders.slice(0, 3).join(" · ");
-    const moreProv = it.allProviders.length > 3 ? ` +${it.allProviders.length - 3}` : "";
-    // per-market breakdown for the expanded detail
-    const others = it.foreign.map(f =>
-      `<div class="ctry"><b>${esc(COUNTRY.of(f.cc) || f.cc)}</b><span class="d">${esc(f.providers.join(", "))}</span></div>`
-    ).join("");
+    // top storefronts, then a +N overflow
+    const stores = it.rentBuy.slice(0, 3).join(" · ");
+    const moreStores = it.rentBuy.length > 3 ? ` +${it.rentBuy.length - 3}` : "";
+    // streaming cell: amber "✗ none", or the niche service(s) that do carry it
+    const niche = it.nicheFlat.slice(0, 2).join(", ") + (it.nicheFlat.length > 2 ? ` +${it.nicheFlat.length - 2}` : "");
+    const strmCell = it.nicheFlat.length
+      ? `<div class="date niche">${esc(niche)} only</div>`
+      : `<div class="date none">✗ none</div>`;
+
+    const bucket = (label, arr) => arr.length
+      ? `<div class="ctry"><b>${label}</b><span class="d">${esc(arr.join(", "))}</span></div>` : "";
+    const detail =
+      bucket("Rent", it.rent) +
+      bucket("Buy", it.buy) +
+      bucket("Subscription (niche)", it.nicheFlat) +
+      bucket("Free with ads", it.freeAds);
 
     el.innerHTML = `
       <div>
-        <div class="title">${esc(it.title)}<span class="yr">${esc(it.year || "")}</span>${it.rating ? `<span class="rate">★ ${it.rating.toFixed(1)}</span>` : ""}</div>
-        <div class="dest">${esc(provs || "—")}<span class="when">${esc(moreProv)} · ${esc(it.label)}</span></div>
+        <div class="title">${esc(it.title)}<span class="yr">${esc(it.year || "")}</span></div>
+        <div class="dest">${esc(stores || "—")}<span class="when">${esc(moreStores)}</span></div>
       </div>
-      <div class="date us">✗</div>
-      <div class="lead">${it.marketCount}</div>
+      ${strmCell}
+      <div class="lead">${it.rating ? esc(it.rating.toFixed(1)) : "—"}</div>
       <div class="detail">
-        <h4>Where to watch — ${esc(it.foreign.length)} market${it.foreign.length===1?"":"s"}</h4>
-        ${others}
+        <h4>US availability</h4>
+        ${detail}
       </div>`;
     const toggle = () => {
       const open = el.classList.toggle("open");
@@ -409,19 +416,19 @@ async function scan() {
   try {
     const tpl = TEMPLATES[$("template").value];
     const movies = await gatherMovies(tpl);
-    if (!movies.length) { status.innerHTML = '<span class="err">No films returned. Try another view or a specific title.</span>'; $("go").disabled = false; return; }
-    status.innerHTML = `Found ${movies.length} films. Checking where they stream…`;
+    if (!movies.length) { status.innerHTML = '<span class="err">No films returned. Try the other view or a specific title.</span>'; $("go").disabled = false; return; }
+    status.innerHTML = `Found ${movies.length} films. Checking US streaming…`;
 
     const results = await pool(movies, 10, async (m) => {
       const pr = await authFetch(`/movie/${m.id}/watch/providers`);
-      const a = analyzeProviders(pr, tpl.types);
+      const a = analyzeUS(pr);
       if (!a) return null;
       return {
         id: m.id, title: m.title, year: (m.release_date || "").slice(0, 4),
         popularity: m.popularity || 0, rating: m.vote_average || 0, votes: m.vote_count || 0,
-        label: tpl.label, ...a,
+        ...a,
       };
-    }, (done) => { status.innerHTML = `Checking where they stream… ${done}/${movies.length}`; });
+    }, (done) => { status.innerHTML = `Checking US streaming… ${done}/${movies.length}`; });
 
     const hits = results.filter(Boolean);
     sortHits(hits, $("sort").value);
@@ -432,7 +439,7 @@ async function scan() {
     const capNote = movies.capped
       ? ` <span class="warn">Candidate pool hit the ${movies.length}-film cap; some titles weren't checked.</span>`
       : "";
-    status.innerHTML = `<span class="on">Done.</span> Scanned ${movies.length} films, found ${hits.length} available abroad but not in the US.${warn}${capNote}`;
+    status.innerHTML = `<span class="on">Done.</span> Scanned ${movies.length} films, found ${hits.length} purchase-only (no major streamer).${warn}${capNote}`;
     render(hits);
   } catch (e) {
     status.innerHTML = `<span class="err">${esc(e.message)}</span>`;

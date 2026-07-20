@@ -1,12 +1,14 @@
-# Early Digital Board
+# Purchase-Only Radar
 
-A single-page web app that finds films you can **stream, rent, or buy digitally
-outside the US right now — but not inside it**. It uses live availability data
-from **[JustWatch](https://www.justwatch.com/) (via TMDB)**, so it reflects what
-providers actually carry today rather than guessing from patchy release dates.
+A single-page web app that catalogs **popular, well-rated films that are not on
+any major US streaming subscription — only available to rent or buy digitally**.
+The Oppenheimer problem: it's in every digital store, but on none of your
+services.
 
-Nothing is installed and nothing is sent anywhere except TMDB: your API key
-stays in your browser the whole time.
+Availability comes live from **[JustWatch](https://www.justwatch.com/) (via
+TMDB)**, so the board reflects what providers actually carry today. Nothing is
+installed and nothing is sent anywhere except TMDB: your API key stays in your
+browser the whole time.
 
 ## Quick start
 
@@ -19,29 +21,27 @@ stays in your browser the whole time.
 
 ## How it works
 
-Each scan queries TMDB's Discover endpoint once per foreign market (~23 are
-baked in) for recent films currently available via a provider there, pools and
-dedups them into one candidate set, caps it, then checks each film's live
-**watch/providers** data (JustWatch via TMDB) to keep only the ones available
-abroad but **not** in the US.
+Each scan pulls the US digital catalog from TMDB's Discover endpoint (films
+currently rentable or buyable in the US, with quality gates on rating and vote
+count), dedups and caps the pool, then checks each film's live
+**watch/providers** data. A film makes the board when it can be rented or
+bought digitally in the US **and** no major subscription service carries it.
 
-A title typed into **"Or search one title"** overrides the view and just
-analyzes that one film.
+**The majors:** Netflix, Amazon Prime Video, Disney+, Hulu, HBO Max, Paramount+,
+Peacock, and Apple TV+ (including their channel variants, e.g. "Paramount+
+Amazon Channel"). A film that's only on a niche subscription — Starz, Criterion
+Channel, Kanopy, MGM+ — still counts as fallen-off, and the row tells you so
+("Starz only").
+
+A title typed into **"Or check one title"** overrides the view and just checks
+that one film — handy for confirming a specific case like Oppenheimer.
 
 ## Views
 
-The **View** selector picks which kind of availability counts:
-
 | View | What it shows |
 |------|---------------|
-| **On streaming abroad · not in US** *(default)* | On a streaming **subscription** (flatrate) somewhere abroad, but on no US subscription. |
-| **Rent/buy abroad · not in US** | Available to **rent or buy** abroad, but not in the US. |
-| **Any digital abroad · not in US** | Streamable, rentable, or buyable abroad, but not available in the US. |
-
-"Not in US" is judged for the same monetization type(s) the view is about — so
-the streaming view still lists a film that's rentable in the US as long as it
-isn't on a US subscription. Each view also gates on the film's own release date
-(last 24–36 months) so the board stays current instead of dredging up catalog.
+| **Fallen off the majors · catalog** *(default)* | Films older than ~18 months (past the usual theatrical→streaming window), rated 6.5+ with 500+ votes, that you can only rent or buy. |
+| **Never landed · recent releases** | Films from the last ~18 months already on US digital storefronts but still not on any major streamer. Lower vote floor (200) since recent films accumulate votes slowly. |
 
 ## Sort
 
@@ -49,25 +49,27 @@ isn't on a US subscription. Each view also gates on the film's own release date
 - **TMDB rating** — TMDB user score (`vote_average`), highest first, with vote
   count as a tiebreak. This is TMDB's own rating, **not IMDb** — IMDb scores
   aren't available from the TMDB API.
-- **Most markets** — by how many countries carry it abroad.
+- **Year** — newest first.
 
 ## Reading the board
 
-- **Film · where to watch abroad** — title, year, TMDB ★ rating, and the top
-  providers it's available on abroad (with `+N` for the rest).
-- **US** — always **✗**: by definition these aren't available in the US for the
-  selected view.
-- **Markets** — how many non-US countries carry it.
+- **Film · where to rent or buy** — title, year, and the top storefronts
+  carrying it (with `+N` for the rest).
+- **Streaming** — **✗ none** (amber) when no US subscription has it, or the
+  niche service that does (e.g. "Starz only").
+- **★ TMDB** — the film's TMDB rating.
 
-Tap/click any row to expand the per-country provider breakdown.
+Tap/click any row to expand the full US breakdown: rent, buy, niche
+subscription, and free-with-ads availability.
 
 ## Caveats
 
-- Availability is **JustWatch data via TMDB** and reflects current providers,
-  which change often and differ by storefront. Confirm before relying on it.
-- It's a snapshot of *now* — there are no "coming soon" dates in this data.
-- **Availability is not legality.** Whether you may access a given title from
-  your location is on you; this tool only reports where it's listed.
+- Availability is **JustWatch data via TMDB** and reflects current providers.
+  Titles rotate on and off services constantly — confirm on the storefront
+  before buying.
+- It's a snapshot of *now* — the data carries no "coming to Netflix on X" dates.
+- The quality gates (rating/vote floors) are intentional: the board is meant to
+  surface notable films, not every purchase-only title in existence.
 
 ---
 
