@@ -119,6 +119,7 @@
   .ctry{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12.5px;padding:4px 0;color:var(--muted)}
   .ctry b{color:var(--ink);font-weight:500}
   .ctry .d{color:var(--amber-dim)}
+  .detail .verify{display:inline-block;margin:10px 0 4px;font-family:var(--mono);font-size:11.5px;color:var(--amber-dim)}
 
   .empty{padding:40px 20px;text-align:center;color:var(--muted)}
   .empty b{color:var(--ink);display:block;margin-bottom:6px;font-size:15px}
@@ -334,10 +335,14 @@ function analyzeUS(pr) {
   const rentBuy = [...new Set([...rent, ...buy])];
   if (!rentBuy.length) return null; // not purchasable digitally — different problem
 
+  // A major in the subscription OR ad-supported buckets disqualifies: TMDB
+  // files ad-tier majors (Peacock, Paramount+ Essential, Netflix with Ads…)
+  // under "ads" rather than "flatrate", and those still count as streaming.
   const flat = names("flatrate");
-  if (flat.some(isMajor)) return null; // it streams on a major — not fallen off
+  const adsFree = names("ads", "free");
+  if (flat.some(isMajor) || adsFree.some(isMajor)) return null;
 
-  return { rent, buy, rentBuy, nicheFlat: flat, freeAds: names("ads", "free") };
+  return { rent, buy, rentBuy, nicheFlat: flat, freeAds: adsFree };
 }
 
 // Sort the board. Rating uses TMDB's own vote_average (not IMDb — see notes),
@@ -395,12 +400,13 @@ function render(list) {
       <div class="detail">
         <h4>US availability</h4>
         ${detail}
+        <a class="verify" href="https://www.justwatch.com/us/search?q=${encodeURIComponent(it.title)}" target="_blank" rel="noopener">Verify on JustWatch ↗</a>
       </div>`;
     const toggle = () => {
       const open = el.classList.toggle("open");
       el.setAttribute("aria-expanded", open ? "true" : "false");
     };
-    el.addEventListener("click", toggle);
+    el.addEventListener("click", e => { if (e.target.closest("a")) return; toggle(); });
     el.addEventListener("keydown", e => {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
     });

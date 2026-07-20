@@ -28,10 +28,15 @@ count), dedups and caps the pool, then checks each film's live
 bought digitally in the US **and** no major subscription service carries it.
 
 **The majors:** Netflix, Amazon Prime Video, Disney+, Hulu, HBO Max, Paramount+,
-Peacock, and Apple TV+ (including their channel variants, e.g. "Paramount+
-Amazon Channel"). A film that's only on a niche subscription — Starz, Criterion
-Channel, Kanopy, MGM+ — still counts as fallen-off, and the row tells you so
-("Starz only").
+Peacock, and Apple TV+ — including their channel variants ("Paramount+ Amazon
+Channel") **and their ad-supported tiers**, which TMDB files under a separate
+`ads` bucket (Peacock's ad tier, Netflix with Ads, Paramount+ Essential…). A
+film carried any of those ways is treated as streaming and excluded. A film
+that's only on a niche subscription — Starz, Criterion Channel, Kanopy, MGM+ —
+still counts as fallen-off, and the row tells you so ("Starz only").
+
+Every row's expanded detail has a **Verify on JustWatch ↗** link that opens the
+film on justwatch.com for a live second opinion.
 
 A title typed into **"Or check one title"** overrides the view and just checks
 that one film — handy for confirming a specific case like Oppenheimer.
