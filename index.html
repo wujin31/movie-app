@@ -51,6 +51,7 @@
   @media(min-width:680px){
     .row.three{grid-template-columns:1.4fr 1fr 1fr}
     .row.two{grid-template-columns:1fr auto}
+    .row.duo{grid-template-columns:1.4fr 1fr}
   }
   label{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 6px;font-family:var(--mono)}
   input,select{
@@ -104,6 +105,7 @@
   .date{font-family:var(--mono);font-size:13px;text-align:right;color:var(--ink);letter-spacing:.02em}
   .date.none{color:var(--amber);font-size:11px;font-weight:600;letter-spacing:.06em}
   .date.niche{color:var(--muted);font-size:11.5px;line-height:1.35}
+  .date .ok{color:var(--green);font-weight:700}
   .lead{
     font-family:var(--mono);font-size:13px;text-align:right;font-weight:680;
     color:var(--green);letter-spacing:.02em
@@ -137,11 +139,16 @@
   </header>
 
   <div class="controls">
-    <div class="row">
+    <div class="row duo">
       <div>
         <label for="key">TMDB API key or read-access token</label>
         <input id="key" type="password" placeholder="v3 key (abc123…) or v4 token (eyJ…)" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
-        <p class="hint">Free under Settings → API at <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">themoviedb.org</a>. The v4 read token (<code>eyJ…</code>) is preferred — it travels in a header, not the URL. Your key stays in your browser and is sent only to TMDB.</p>
+        <p class="hint">Free under Settings → API at <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">themoviedb.org</a>. The v4 read token (<code>eyJ…</code>) is preferred — it travels in a header, not the URL. Your keys stay in your browser.</p>
+      </div>
+      <div>
+        <label for="wmkey">Watchmode key · optional cross-check</label>
+        <input id="wmkey" type="password" placeholder="double-checks the top results" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <p class="hint">Free key at <a href="https://api.watchmode.com/" target="_blank" rel="noopener">api.watchmode.com</a>. Re-verifies top results against a second database and drops films it sees on a major streamer — catches TMDB mirror lag.</p>
       </div>
     </div>
     <div class="row three">
@@ -249,7 +256,7 @@ const shiftMonths = n => {
 // bucket never contains the Apple/Amazon rent-buy storefronts, so "apple tv"
 // and "prime video" are safe there. "max" is matched on a word boundary so
 // Cinemax/MGM Plus don't false-positive.
-const MAJORS = ["netflix", "prime video", "disney", "hulu", "hbo", "paramount", "peacock", "apple tv"];
+const MAJORS = ["netflix", "prime video", "amazon prime", "disney", "hulu", "hbo", "paramount", "peacock", "apple tv"];
 const isMajor = name => {
   const n = String(name).toLowerCase();
   return MAJORS.some(k => n.includes(k)) || /\bmax\b/.test(n);
@@ -345,6 +352,32 @@ function analyzeUS(pr) {
   return { rent, buy, rentBuy, nicheFlat: flat, freeAds: adsFree };
 }
 
+// Optional second opinion: re-verify the top hits against Watchmode, an
+// independent availability database. Catches TMDB mirror lag (a film JustWatch
+// already shows on Hulu that TMDB hasn't caught up on). Capped so a scan costs
+// at most WM_CHECK_LIMIT of the free tier's ~1000 monthly credits.
+const WM_CHECK_LIMIT = 40;
+async function crossCheck(hits) {
+  const wmKey = $("wmkey").value.trim();
+  if (!wmKey || !hits.length) return null;
+  const subset = hits.slice(0, WM_CHECK_LIMIT);
+  const flagged = new Set();
+  const res = await pool(subset, 6, async (h) => {
+    const url = new URL(`https://api.watchmode.com/v1/title/movie-${h.id}/sources/`);
+    url.searchParams.set("apiKey", wmKey);
+    url.searchParams.set("regions", "US");
+    const r = await fetch(url);
+    if (!r.ok) throw new Error("watchmode " + r.status);
+    const sources = await r.json();
+    const onMajor = (Array.isArray(sources) ? sources : []).some(s =>
+      (s.type === "sub" || s.type === "free") && isMajor(s.name));
+    if (onMajor) flagged.add(h.id);
+    else h.verified = true;
+    return true;
+  }, done => { status.innerHTML = `Cross-checking with Watchmode… ${done}/${subset.length}`; });
+  return { flagged, checked: subset.length, failed: res.failed };
+}
+
 // Sort the board. Rating uses TMDB's own vote_average (not IMDb — see notes),
 // with vote count as a tiebreak so a lone 10/10 doesn't top a well-rated film.
 function sortHits(hits, mode) {
@@ -378,9 +411,10 @@ function render(list) {
     const moreStores = it.rentBuy.length > 3 ? ` +${it.rentBuy.length - 3}` : "";
     // streaming cell: amber "✗ none", or the niche service(s) that do carry it
     const niche = it.nicheFlat.slice(0, 2).join(", ") + (it.nicheFlat.length > 2 ? ` +${it.nicheFlat.length - 2}` : "");
+    const ok = it.verified ? ' <span class="ok" title="Confirmed by Watchmode">✓</span>' : "";
     const strmCell = it.nicheFlat.length
-      ? `<div class="date niche">${esc(niche)} only</div>`
-      : `<div class="date none">✗ none</div>`;
+      ? `<div class="date niche">${esc(niche)} only${ok}</div>`
+      : `<div class="date none">✗ none${ok}</div>`;
 
     const bucket = (label, arr) => arr.length
       ? `<div class="ctry"><b>${label}</b><span class="d">${esc(arr.join(", "))}</span></div>` : "";
@@ -436,8 +470,11 @@ async function scan() {
       };
     }, (done) => { status.innerHTML = `Checking US streaming… ${done}/${movies.length}`; });
 
-    const hits = results.filter(Boolean);
+    let hits = results.filter(Boolean);
     sortHits(hits, $("sort").value);
+
+    const cc = await crossCheck(hits);
+    if (cc && cc.flagged.size) hits = hits.filter(h => !cc.flagged.has(h.id));
 
     const warn = results.failed
       ? ` <span class="warn">${results.failed} lookup${results.failed===1?"":"s"} failed and were skipped.</span>`
@@ -445,7 +482,13 @@ async function scan() {
     const capNote = movies.capped
       ? ` <span class="warn">Candidate pool hit the ${movies.length}-film cap; some titles weren't checked.</span>`
       : "";
-    status.innerHTML = `<span class="on">Done.</span> Scanned ${movies.length} films, found ${hits.length} purchase-only (no major streamer).${warn}${capNote}`;
+    let ccNote = "";
+    if (cc) {
+      ccNote = cc.failed >= cc.checked
+        ? ' <span class="warn">Watchmode cross-check failed — check that key.</span>'
+        : ` Cross-checked top ${cc.checked}${cc.flagged.size ? `, dropped ${cc.flagged.size} actually on a major` : ", all confirmed"}.`;
+    }
+    status.innerHTML = `<span class="on">Done.</span> Scanned ${movies.length} films, found ${hits.length} purchase-only (no major streamer).${ccNote}${warn}${capNote}`;
     render(hits);
   } catch (e) {
     status.innerHTML = `<span class="err">${esc(e.message)}</span>`;

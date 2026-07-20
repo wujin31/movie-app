@@ -38,6 +38,15 @@ still counts as fallen-off, and the row tells you so ("Starz only").
 Every row's expanded detail has a **Verify on JustWatch ↗** link that opens the
 film on justwatch.com for a live second opinion.
 
+**Optional Watchmode cross-check:** paste a free key from
+[api.watchmode.com](https://api.watchmode.com/) into the second field and the
+app re-verifies the top 40 results against Watchmode's independent database,
+silently dropping any film it shows on a major streamer (these get a green ✓ in
+the Streaming column when confirmed). This catches TMDB mirror lag — cases
+where justwatch.com already lists a film on, say, Hulu but TMDB's copy of the
+data hasn't caught up. The 40-title cap keeps a scan within the free tier's
+~1,000 monthly credits.
+
 A title typed into **"Or check one title"** overrides the view and just checks
 that one film — handy for confirming a specific case like Oppenheimer.
 
