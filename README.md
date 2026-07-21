@@ -56,6 +56,7 @@ that one film — handy for confirming a specific case like Oppenheimer.
 |------|---------------|
 | **Fallen off the majors · catalog** *(default)* | Films older than ~18 months (past the usual theatrical→streaming window), rated 6.5+ with 500+ votes, that you can only rent or buy. |
 | **Never landed · recent releases** | Films from the last ~18 months already on US digital storefronts but still not on any major streamer. Lower vote floor (200) since recent films accumulate votes slowly. |
+| **All titles · plain search** | A plain name search. Type a title, see every match with its full US availability — streaming, rent, and buy — with no purchase-only filtering. This is a straight lookup, so the Watchmode cross-check and quality gates don't apply. |
 
 ## Sort
 

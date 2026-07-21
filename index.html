@@ -104,7 +104,9 @@
   .dest .when{color:var(--muted)}
   .date{font-family:var(--mono);font-size:13px;text-align:right;color:var(--ink);letter-spacing:.02em}
   .date.none{color:var(--amber);font-size:11px;font-weight:600;letter-spacing:.06em}
+  .date.none2{color:var(--muted-2)}
   .date.niche{color:var(--muted);font-size:11.5px;line-height:1.35}
+  .date.stream{color:var(--green);font-size:11.5px;line-height:1.35;font-weight:600}
   .date .ok{color:var(--green);font-weight:700}
   .lead{
     font-family:var(--mono);font-size:13px;text-align:right;font-weight:680;
@@ -157,6 +159,7 @@
         <select id="template">
           <option value="fallen_off" selected>Fallen off the majors · catalog</option>
           <option value="not_landed">Never landed · recent releases</option>
+          <option value="all">All titles · plain search</option>
         </select>
       </div>
       <div>
@@ -182,7 +185,7 @@
 
   <div class="board" id="board" hidden>
     <div class="board-head">
-      <span>Film · where to rent or buy</span>
+      <span>Film · where to watch</span>
       <span class="r">Streaming</span>
       <span class="r">★ TMDB</span>
     </div>
@@ -284,11 +287,15 @@ const TEMPLATES = {
     sorts: ["popularity.desc"],
     pages: 15,
   },
+  all: {
+    note: "Search any title by name — see where it streams, rents, or buys in the US.",
+    search: true,
+  },
 };
 
 // Pull films currently rentable/buyable in the US inside the view's window,
 // pool the requests, dedup into one candidate pool, and cap it. Discover can't
-// express "NOT on a streamer", so analyzeUS does that half of the filtering.
+// express "NOT on a streamer", so isPurchaseOnly does that half of the filtering.
 async function gatherDiscover(tpl) {
   const cutoff = shiftMonths(-LANDED_CUTOFF);
   const tasks = [];
@@ -319,20 +326,22 @@ async function gatherDiscover(tpl) {
   return out;
 }
 
-async function gatherMovies(tpl) {
+async function gatherMovies(tpl, all) {
   const title = $("title").value.trim();
   if (title) {
     const r = await authFetch("/search/movie", { query: title, include_adult: "false" });
-    return (r.results || []).slice(0, 12);
+    return (r.results || []).slice(0, all ? 20 : 12);
   }
   return gatherDiscover(tpl);
 }
 
-// Inspect a film's live US providers (JustWatch via TMDB). A hit means: you
-// can rent or buy it digitally, but no major subscription service carries it.
-// Niche subscriptions (Starz, Criterion…) and free-with-ads services don't
-// disqualify — they're reported so the row can say "only on Starz".
-function analyzeUS(pr) {
+// Extract a film's live US availability (JustWatch via TMDB) into buckets.
+// Returns null only when there's no US data at all. Filtering (purchase-only vs.
+// plain search) is the caller's job — this just reports what's available.
+//   majorStream: subscription/ad-tier availability on a major streamer. TMDB
+//   files ad-tier majors (Peacock, Paramount+ Essential, Netflix with Ads…)
+//   under "ads" rather than "flatrate", so both buckets are checked.
+function usBreakdown(pr) {
   const us = (pr.results || {}).US;
   if (!us) return null;
   const names = (...buckets) =>
@@ -340,16 +349,16 @@ function analyzeUS(pr) {
 
   const rent = names("rent"), buy = names("buy");
   const rentBuy = [...new Set([...rent, ...buy])];
-  if (!rentBuy.length) return null; // not purchasable digitally — different problem
-
-  // A major in the subscription OR ad-supported buckets disqualifies: TMDB
-  // files ad-tier majors (Peacock, Paramount+ Essential, Netflix with Ads…)
-  // under "ads" rather than "flatrate", and those still count as streaming.
-  const flat = names("flatrate");
+  const streams = names("flatrate");
   const adsFree = names("ads", "free");
-  if (flat.some(isMajor) || adsFree.some(isMajor)) return null;
+  const majorStream = [...streams, ...adsFree].filter(isMajor);
+  const nicheFlat = streams.filter(n => !isMajor(n));
+  return { rent, buy, rentBuy, streams, adsFree, nicheFlat, majorStream };
+}
 
-  return { rent, buy, rentBuy, nicheFlat: flat, freeAds: adsFree };
+// The catalog predicate: purchasable digitally, and on no major streamer.
+function isPurchaseOnly(b) {
+  return b && b.rentBuy.length > 0 && b.majorStream.length === 0;
 }
 
 // Optional second opinion: re-verify the top hits against Watchmode, an
@@ -390,15 +399,18 @@ function sortHits(hits, mode) {
   }
 }
 
-function render(list) {
+function render(list, all) {
   const board = $("board"), rows = $("rows");
   rows.innerHTML = "";
   if (!list.length) {
     board.hidden = false;
-    rows.innerHTML = '<div class="empty"><b>Nothing found</b>No purchase-only films matched this view. Try the other view, or check a specific title.</div>';
+    rows.innerHTML = all
+      ? '<div class="empty"><b>Nothing found</b>No titles matched that search.</div>'
+      : '<div class="empty"><b>Nothing found</b>No purchase-only films matched this view. Try another view, or check a specific title.</div>';
     return;
   }
   board.hidden = false;
+  const cap = (arr, n) => arr.slice(0, n).join(", ") + (arr.length > n ? ` +${arr.length - n}` : "");
   for (const it of list) {
     const el = document.createElement("div");
     el.className = "flip";
@@ -409,20 +421,30 @@ function render(list) {
     // top storefronts, then a +N overflow
     const stores = it.rentBuy.slice(0, 3).join(" · ");
     const moreStores = it.rentBuy.length > 3 ? ` +${it.rentBuy.length - 3}` : "";
-    // streaming cell: amber "✗ none", or the niche service(s) that do carry it
-    const niche = it.nicheFlat.slice(0, 2).join(", ") + (it.nicheFlat.length > 2 ? ` +${it.nicheFlat.length - 2}` : "");
     const ok = it.verified ? ' <span class="ok" title="Confirmed by Watchmode">✓</span>' : "";
-    const strmCell = it.nicheFlat.length
-      ? `<div class="date niche">${esc(niche)} only${ok}</div>`
-      : `<div class="date none">✗ none${ok}</div>`;
+
+    // streaming cell differs by mode. all: show the actual streamers; catalog:
+    // "✗ none" (amber) or the niche service(s) that carry it.
+    let strmCell;
+    if (all) {
+      if (it.streams.length) strmCell = `<div class="date stream">${esc(cap(it.streams, 2))}</div>`;
+      else if (it.adsFree.length) strmCell = `<div class="date niche">free w/ ads</div>`;
+      else strmCell = `<div class="date none2">—</div>`;
+    } else {
+      strmCell = it.nicheFlat.length
+        ? `<div class="date niche">${esc(cap(it.nicheFlat, 2))} only${ok}</div>`
+        : `<div class="date none">✗ none${ok}</div>`;
+    }
 
     const bucket = (label, arr) => arr.length
       ? `<div class="ctry"><b>${label}</b><span class="d">${esc(arr.join(", "))}</span></div>` : "";
     const detail =
+      bucket("Streaming", it.streams) +
+      bucket("Free with ads", it.adsFree) +
       bucket("Rent", it.rent) +
       bucket("Buy", it.buy) +
-      bucket("Subscription (niche)", it.nicheFlat) +
-      bucket("Free with ads", it.freeAds);
+      (all && !it.streams.length && !it.adsFree.length && !it.rentBuy.length
+        ? '<div class="ctry"><b>Not available digitally in the US</b></div>' : "");
 
     el.innerHTML = `
       <div>
@@ -451,29 +473,38 @@ function render(list) {
 async function scan() {
   const key = $("key").value.trim();
   if (!key) { status.innerHTML = '<span class="err">Enter your TMDB key or token first.</span>'; return; }
+  const tpl = TEMPLATES[$("template").value];
+  const all = !!tpl.search;
+  if (all && !$("title").value.trim()) { status.innerHTML = '<span class="err">Type a title to search.</span>'; return; }
   $("go").disabled = true;
-  status.innerHTML = "Finding candidates…";
+  status.innerHTML = all ? "Searching…" : "Finding candidates…";
   try {
-    const tpl = TEMPLATES[$("template").value];
-    const movies = await gatherMovies(tpl);
-    if (!movies.length) { status.innerHTML = '<span class="err">No films returned. Try the other view or a specific title.</span>'; $("go").disabled = false; return; }
-    status.innerHTML = `Found ${movies.length} films. Checking US streaming…`;
+    const movies = await gatherMovies(tpl, all);
+    if (!movies.length) {
+      status.innerHTML = all
+        ? '<span class="err">No titles matched that search.</span>'
+        : '<span class="err">No films returned. Try another view or a specific title.</span>';
+      $("go").disabled = false; return;
+    }
+    status.innerHTML = `Found ${movies.length} ${all ? "titles" : "films"}. Checking US availability…`;
 
     const results = await pool(movies, 10, async (m) => {
       const pr = await authFetch(`/movie/${m.id}/watch/providers`);
-      const a = analyzeUS(pr);
-      if (!a) return null;
-      return {
+      const b = usBreakdown(pr);
+      if (!all && !isPurchaseOnly(b)) return null; // catalog views filter here
+      const meta = {
         id: m.id, title: m.title, year: (m.release_date || "").slice(0, 4),
         popularity: m.popularity || 0, rating: m.vote_average || 0, votes: m.vote_count || 0,
-        ...a,
       };
-    }, (done) => { status.innerHTML = `Checking US streaming… ${done}/${movies.length}`; });
+      // in "all" mode a film with no US data still shows, flagged noUS
+      return b ? { ...meta, ...b } : { ...meta, rent: [], buy: [], rentBuy: [], streams: [], adsFree: [], nicheFlat: [], majorStream: [], noUS: true };
+    }, (done) => { status.innerHTML = `Checking US availability… ${done}/${movies.length}`; });
 
     let hits = results.filter(Boolean);
     sortHits(hits, $("sort").value);
 
-    const cc = await crossCheck(hits);
+    // Watchmode cross-check only makes sense for the purchase-only catalog views.
+    const cc = all ? null : await crossCheck(hits);
     if (cc && cc.flagged.size) hits = hits.filter(h => !cc.flagged.has(h.id));
 
     const warn = results.failed
@@ -488,8 +519,10 @@ async function scan() {
         ? ' <span class="warn">Watchmode cross-check failed — check that key.</span>'
         : ` Cross-checked top ${cc.checked}${cc.flagged.size ? `, dropped ${cc.flagged.size} actually on a major` : ", all confirmed"}.`;
     }
-    status.innerHTML = `<span class="on">Done.</span> Scanned ${movies.length} films, found ${hits.length} purchase-only (no major streamer).${ccNote}${warn}${capNote}`;
-    render(hits);
+    status.innerHTML = all
+      ? `<span class="on">Done.</span> ${hits.length} title${hits.length===1?"":"s"} for "${esc($("title").value.trim())}".${warn}`
+      : `<span class="on">Done.</span> Scanned ${movies.length} films, found ${hits.length} purchase-only (no major streamer).${ccNote}${warn}${capNote}`;
+    render(hits, all);
   } catch (e) {
     status.innerHTML = `<span class="err">${esc(e.message)}</span>`;
   } finally {
