@@ -77,6 +77,20 @@ that one film — handy for confirming a specific case like Oppenheimer.
 Tap/click any row to expand the full US breakdown: rent, buy, niche
 subscription, and free-with-ads availability.
 
+## Interface niceties
+
+- **Remember my key(s)** — opt-in checkbox that stores your TMDB (and Watchmode)
+  key in this browser's `localStorage` so you don't re-paste on every reload.
+  Off by default; unchecking clears the stored keys.
+- **Posters, logos & deep links** — each row shows cover art and provider icons,
+  and the title links straight to the film's JustWatch page.
+- **Instant view toggle** — results are cached per view for the session, so
+  switching back to an already-scanned view is instant (press Scan to refresh).
+- **Refine in place** — after a scan, chip filters (genre / decade / rating)
+  narrow the board client-side with no new API calls. Sort changes are instant too.
+- **Live search** — in the All view, results update as you type, with a list of
+  your recent searches.
+
 ## Caveats
 
 - Availability is **JustWatch data via TMDB** and reflects current providers.

@@ -130,6 +130,36 @@
 
   footer{margin-top:28px;font-size:11.5px;color:var(--muted-2);line-height:1.6;font-family:var(--mono)}
   footer a{color:var(--amber-dim)}
+
+  /* remember-key checkbox spanning the key row */
+  .checkline.remember{grid-column:1/-1;margin-top:2px}
+
+  /* poster + film cell */
+  .filmcell{display:flex;gap:11px;align-items:flex-start}
+  .poster{width:46px;height:69px;border-radius:5px;object-fit:cover;background:var(--board);flex:none;border:1px solid var(--line)}
+  .poster.ph{display:flex;align-items:center;justify-content:center;font-size:18px;opacity:.5}
+  .filminfo{min-width:0}
+  .title a{color:inherit;text-decoration:none}
+  .title a:hover{color:var(--amber)}
+
+  /* provider logos */
+  .dest{display:flex;align-items:center;flex-wrap:wrap;gap:5px}
+  .plogo{width:20px;height:20px;border-radius:5px;object-fit:cover;vertical-align:middle}
+  .pname{font-family:var(--mono);font-size:11.5px;color:var(--amber-dim)}
+  .pmore{font-family:var(--mono);font-size:11px;color:var(--muted-2)}
+  .date.stream,.date.niche{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:4px}
+  .date .lbl{color:var(--muted-2)}
+
+  /* chip rows: refine + recent */
+  .refinebar,.recent{max-width:980px;margin:10px auto 0;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+  .recent{margin-top:14px}
+  .cgroup{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .rlabel{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted-2);margin-right:2px}
+  .chip{background:var(--board-2);border:1px solid var(--line);color:var(--muted);border-radius:999px;
+    padding:5px 12px;font-size:12.5px;font-family:var(--sans);cursor:pointer;line-height:1}
+  .chip:hover{border-color:var(--amber-dim);color:var(--ink)}
+  .chip.on{background:var(--amber);border-color:var(--amber);color:#1a1205;font-weight:600}
+  .status .cached{color:var(--amber)}
 </style>
 </head>
 <body>
@@ -152,6 +182,7 @@
         <input id="wmkey" type="password" placeholder="double-checks the top results" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
         <p class="hint">Free key at <a href="https://api.watchmode.com/" target="_blank" rel="noopener">api.watchmode.com</a>. Re-verifies top results against a second database and drops films it sees on a major streamer — catches TMDB mirror lag.</p>
       </div>
+      <label class="checkline remember"><input type="checkbox" id="remember"> Remember my key(s) on this device (stored in your browser's localStorage)</label>
     </div>
     <div class="row three">
       <div>
@@ -181,7 +212,11 @@
     </div>
   </div>
 
+  <div class="recent" id="recent" hidden></div>
+
   <p class="status" id="status" role="status" aria-live="polite"></p>
+
+  <div class="refinebar" id="refine" hidden></div>
 
   <div class="board" id="board" hidden>
     <div class="board-head">
@@ -268,6 +303,18 @@ const isMajor = name => {
 const MAX_FILMS = 500;
 const LANDED_CUTOFF = 18; // months — the typical theatrical→streaming window
 
+// TMDB image bases (fine on a normally hosted page; not an Artifact CSP context)
+const POSTER = "https://image.tmdb.org/t/p/w92";
+const LOGO = "https://image.tmdb.org/t/p/w45";
+
+// TMDB movie genre id → name (fixed list) for the refine chips
+const GENRES = {
+  28:"Action", 12:"Adventure", 16:"Animation", 35:"Comedy", 80:"Crime",
+  99:"Documentary", 18:"Drama", 10751:"Family", 14:"Fantasy", 36:"History",
+  27:"Horror", 10402:"Music", 9648:"Mystery", 10749:"Romance",
+  878:"Sci-Fi", 10770:"TV Movie", 53:"Thriller", 10752:"War", 37:"Western",
+};
+
 // The two views share one predicate (US rent/buy exists, no major US streamer)
 // and differ only in the Discover window and quality gates. Older films get a
 // higher vote floor plus a second rating-sorted pass so the catalog view
@@ -338,22 +385,28 @@ async function gatherMovies(tpl, all) {
 // Extract a film's live US availability (JustWatch via TMDB) into buckets.
 // Returns null only when there's no US data at all. Filtering (purchase-only vs.
 // plain search) is the caller's job — this just reports what's available.
-//   majorStream: subscription/ad-tier availability on a major streamer. TMDB
-//   files ad-tier majors (Peacock, Paramount+ Essential, Netflix with Ads…)
-//   under "ads" rather than "flatrate", so both buckets are checked.
+//   Each bucket is an array of {name, logo} provider objects (logo drives the
+//   icon; name drives all matching logic). majorStream stays a names array so
+//   TMDB's ad-tier majors (Peacock, Paramount+ Essential, Netflix with Ads…),
+//   filed under "ads" rather than "flatrate", still disqualify.
 function usBreakdown(pr) {
   const us = (pr.results || {}).US;
   if (!us) return null;
-  const names = (...buckets) =>
-    [...new Set(buckets.flatMap(b => (us[b] || []).map(p => p.provider_name)))];
+  const provs = (...buckets) => {
+    const by = new Map();
+    for (const b of buckets) for (const p of (us[b] || []))
+      if (!by.has(p.provider_name)) by.set(p.provider_name, { name: p.provider_name, logo: p.logo_path || "" });
+    return [...by.values()];
+  };
+  const nm = arr => arr.map(p => p.name);
 
-  const rent = names("rent"), buy = names("buy");
-  const rentBuy = [...new Set([...rent, ...buy])];
-  const streams = names("flatrate");
-  const adsFree = names("ads", "free");
-  const majorStream = [...streams, ...adsFree].filter(isMajor);
-  const nicheFlat = streams.filter(n => !isMajor(n));
-  return { rent, buy, rentBuy, streams, adsFree, nicheFlat, majorStream };
+  const rent = provs("rent"), buy = provs("buy");
+  const rentBuy = provs("rent", "buy");
+  const streams = provs("flatrate");
+  const adsFree = provs("ads", "free");
+  const majorStream = [...nm(streams), ...nm(adsFree)].filter(isMajor);
+  const nicheFlat = streams.filter(p => !isMajor(p.name));
+  return { rent, buy, rentBuy, streams, adsFree, nicheFlat, majorStream, link: us.link || "" };
 }
 
 // The catalog predicate: purchasable digitally, and on no major streamer.
@@ -399,6 +452,77 @@ function sortHits(hits, mode) {
   }
 }
 
+// ---- result cache + client-side view pipeline ----
+// currentHits is the full result of the last scan; the Sort dropdown and the
+// refine chips both re-derive the board from it with zero network calls, and
+// resultCache lets toggling back to an already-scanned view render instantly.
+const resultCache = new Map();
+let currentHits = [], currentAll = false;
+let refineState = { genres: new Set(), decade: "", minRating: 0 };
+
+function cacheKey() {
+  const v = $("template").value;
+  return TEMPLATES[v].search ? "all::" + $("title").value.trim().toLowerCase() : v;
+}
+function setData(hits, all) {
+  currentHits = hits; currentAll = all;
+  refineState = { genres: new Set(), decade: "", minRating: 0 };
+  buildRefine();
+  applyView();
+}
+function passesRefine(h) {
+  if (refineState.genres.size && !(h.genres || []).some(g => refineState.genres.has(g))) return false;
+  if (refineState.decade && String(h.year).slice(0, 3) + "0" !== refineState.decade) return false;
+  if (refineState.minRating && (h.rating || 0) < refineState.minRating) return false;
+  return true;
+}
+function applyView() {
+  const list = currentHits.filter(passesRefine);
+  sortHits(list, $("sort").value);
+  render(list, currentAll);
+}
+
+// Build the refine chip bar from the genres/decades actually present in the
+// current results, so it only ever offers filters that do something.
+function buildRefine() {
+  const bar = $("refine");
+  if (!currentHits.length) { bar.hidden = true; bar.innerHTML = ""; return; }
+  const gPresent = new Set();
+  const decades = new Set();
+  for (const h of currentHits) {
+    (h.genres || []).forEach(g => { if (GENRES[g]) gPresent.add(g); });
+    const y = String(h.year); if (y.length === 4) decades.add(y.slice(0, 3) + "0");
+  }
+  const gChips = [...gPresent].sort((a, b) => GENRES[a].localeCompare(GENRES[b]))
+    .map(g => `<button class="chip" type="button" data-type="genre" data-val="${g}">${esc(GENRES[g])}</button>`).join("");
+  const dChips = [...decades].sort().reverse()
+    .map(d => `<button class="chip" type="button" data-type="decade" data-val="${d}">${d}s</button>`).join("");
+  const rChips = [["0", "Any"], ["6", "6+"], ["7", "7+"], ["8", "8+"]]
+    .map(([v, l]) => `<button class="chip${v === "0" ? " on" : ""}" type="button" data-type="rate" data-val="${v}">${l}</button>`).join("");
+  bar.hidden = false;
+  bar.innerHTML =
+    (gChips ? `<div class="cgroup"><span class="rlabel">Genre</span>${gChips}</div>` : "") +
+    (decades.size > 1 ? `<div class="cgroup"><span class="rlabel">Decade</span>${dChips}</div>` : "") +
+    `<div class="cgroup"><span class="rlabel">Rating</span>${rChips}</div>`;
+  bar.querySelectorAll("button").forEach(b => b.addEventListener("click", () => onChip(b)));
+}
+function onChip(b) {
+  const { type, val } = b.dataset;
+  if (type === "genre") {
+    const g = Number(val);
+    refineState.genres.has(g) ? refineState.genres.delete(g) : refineState.genres.add(g);
+    b.classList.toggle("on");
+  } else {
+    const single = type === "decade" ? "decade" : "minRating";
+    const isOn = type === "decade" ? refineState.decade === val : refineState.minRating === Number(val);
+    b.parentElement.querySelectorAll(`[data-type=${type}]`).forEach(x => x.classList.remove("on"));
+    refineState[single] = type === "decade" ? (isOn ? "" : val) : Number(val);
+    if (!(type === "decade" && isOn)) b.classList.add("on");
+  }
+  applyView();
+}
+$("sort").addEventListener("change", () => { if (currentHits.length) applyView(); });
+
 function render(list, all) {
   const board = $("board"), rows = $("rows");
   rows.innerHTML = "";
@@ -410,7 +534,12 @@ function render(list, all) {
     return;
   }
   board.hidden = false;
-  const cap = (arr, n) => arr.slice(0, n).join(", ") + (arr.length > n ? ` +${arr.length - n}` : "");
+  // provider icon (falls back to the name when TMDB has no logo)
+  const icon = p => p.logo
+    ? `<img class="plogo" src="${LOGO}${esc(p.logo)}" alt="" title="${esc(p.name)}" loading="lazy">`
+    : `<span class="pname">${esc(p.name)}</span>`;
+  const icons = (arr, n) => arr.slice(0, n).map(icon).join("") +
+    (arr.length > n ? `<span class="pmore">+${arr.length - n}</span>` : "");
   for (const it of list) {
     const el = document.createElement("div");
     el.className = "flip";
@@ -418,26 +547,28 @@ function render(list, all) {
     el.setAttribute("role", "button");
     el.setAttribute("aria-expanded", "false");
 
-    // top storefronts, then a +N overflow
-    const stores = it.rentBuy.slice(0, 3).join(" · ");
-    const moreStores = it.rentBuy.length > 3 ? ` +${it.rentBuy.length - 3}` : "";
     const ok = it.verified ? ' <span class="ok" title="Confirmed by Watchmode">✓</span>' : "";
+    // deep-link to the film's JustWatch page when we have it, else a search
+    const link = it.link || `https://www.justwatch.com/us/search?q=${encodeURIComponent(it.title)}`;
+    const poster = it.poster
+      ? `<img class="poster" src="${POSTER}${esc(it.poster)}" alt="" loading="lazy">`
+      : `<div class="poster ph">🎬</div>`;
 
     // streaming cell differs by mode. all: show the actual streamers; catalog:
     // "✗ none" (amber) or the niche service(s) that carry it.
     let strmCell;
     if (all) {
-      if (it.streams.length) strmCell = `<div class="date stream">${esc(cap(it.streams, 2))}</div>`;
+      if (it.streams.length) strmCell = `<div class="date stream">${icons(it.streams, 2)}</div>`;
       else if (it.adsFree.length) strmCell = `<div class="date niche">free w/ ads</div>`;
       else strmCell = `<div class="date none2">—</div>`;
     } else {
       strmCell = it.nicheFlat.length
-        ? `<div class="date niche">${esc(cap(it.nicheFlat, 2))} only${ok}</div>`
+        ? `<div class="date niche">${icons(it.nicheFlat, 2)}<span class="lbl"> only</span>${ok}</div>`
         : `<div class="date none">✗ none${ok}</div>`;
     }
 
     const bucket = (label, arr) => arr.length
-      ? `<div class="ctry"><b>${label}</b><span class="d">${esc(arr.join(", "))}</span></div>` : "";
+      ? `<div class="ctry"><b>${label}</b><span class="d">${arr.map(p => esc(p.name)).join(", ")}</span></div>` : "";
     const detail =
       bucket("Streaming", it.streams) +
       bucket("Free with ads", it.adsFree) +
@@ -447,16 +578,19 @@ function render(list, all) {
         ? '<div class="ctry"><b>Not available digitally in the US</b></div>' : "");
 
     el.innerHTML = `
-      <div>
-        <div class="title">${esc(it.title)}<span class="yr">${esc(it.year || "")}</span></div>
-        <div class="dest">${esc(stores || "—")}<span class="when">${esc(moreStores)}</span></div>
+      <div class="filmcell">
+        ${poster}
+        <div class="filminfo">
+          <div class="title"><a href="${esc(link)}" target="_blank" rel="noopener">${esc(it.title)}</a><span class="yr">${esc(it.year || "")}</span></div>
+          <div class="dest">${it.rentBuy.length ? icons(it.rentBuy, 3) : "—"}</div>
+        </div>
       </div>
       ${strmCell}
       <div class="lead">${it.rating ? esc(it.rating.toFixed(1)) : "—"}</div>
       <div class="detail">
         <h4>US availability</h4>
         ${detail}
-        <a class="verify" href="https://www.justwatch.com/us/search?q=${encodeURIComponent(it.title)}" target="_blank" rel="noopener">Verify on JustWatch ↗</a>
+        <a class="verify" href="${esc(link)}" target="_blank" rel="noopener">Open on JustWatch ↗</a>
       </div>`;
     const toggle = () => {
       const open = el.classList.toggle("open");
@@ -495,13 +629,13 @@ async function scan() {
       const meta = {
         id: m.id, title: m.title, year: (m.release_date || "").slice(0, 4),
         popularity: m.popularity || 0, rating: m.vote_average || 0, votes: m.vote_count || 0,
+        poster: m.poster_path || "", genres: m.genre_ids || [],
       };
       // in "all" mode a film with no US data still shows, flagged noUS
-      return b ? { ...meta, ...b } : { ...meta, rent: [], buy: [], rentBuy: [], streams: [], adsFree: [], nicheFlat: [], majorStream: [], noUS: true };
+      return b ? { ...meta, ...b } : { ...meta, rent: [], buy: [], rentBuy: [], streams: [], adsFree: [], nicheFlat: [], majorStream: [], link: "", noUS: true };
     }, (done) => { status.innerHTML = `Checking US availability… ${done}/${movies.length}`; });
 
     let hits = results.filter(Boolean);
-    sortHits(hits, $("sort").value);
 
     // Watchmode cross-check only makes sense for the purchase-only catalog views.
     const cc = all ? null : await crossCheck(hits);
@@ -522,7 +656,9 @@ async function scan() {
     status.innerHTML = all
       ? `<span class="on">Done.</span> ${hits.length} title${hits.length===1?"":"s"} for "${esc($("title").value.trim())}".${warn}`
       : `<span class="on">Done.</span> Scanned ${movies.length} films, found ${hits.length} purchase-only (no major streamer).${ccNote}${warn}${capNote}`;
-    render(hits, all);
+    resultCache.set(cacheKey(), { hits, all });
+    if (all) pushRecent($("title").value.trim());
+    setData(hits, all);
   } catch (e) {
     status.innerHTML = `<span class="err">${esc(e.message)}</span>`;
   } finally {
@@ -530,16 +666,80 @@ async function scan() {
   }
 }
 
-// show a one-line description of the selected view
+// ---- remember keys (opt-in localStorage) ----
+const KEYS = { tmdb: "pk_tmdb", wm: "pk_wm", on: "pk_remember", recent: "pk_recent" };
+const ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } },
+             set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
+             del: k => { try { localStorage.removeItem(k); } catch {} } };
+function persistKeys() {
+  if ($("remember").checked) {
+    ls.set(KEYS.on, "1"); ls.set(KEYS.tmdb, $("key").value.trim()); ls.set(KEYS.wm, $("wmkey").value.trim());
+  } else {
+    ls.del(KEYS.on); ls.del(KEYS.tmdb); ls.del(KEYS.wm);
+  }
+}
+function restoreKeys() {
+  if (ls.get(KEYS.on) !== "1") return;
+  $("remember").checked = true;
+  $("key").value = ls.get(KEYS.tmdb) || "";
+  $("wmkey").value = ls.get(KEYS.wm) || "";
+}
+$("remember").addEventListener("change", persistKeys);
+["key", "wmkey"].forEach(id => $(id).addEventListener("input", () => { if ($("remember").checked) persistKeys(); }));
+
+// ---- recent searches (All mode) ----
+function loadRecent() { try { return JSON.parse(ls.get(KEYS.recent) || "[]"); } catch { return []; } }
+function pushRecent(q) {
+  const list = [q, ...loadRecent().filter(x => x.toLowerCase() !== q.toLowerCase())].slice(0, 8);
+  ls.set(KEYS.recent, JSON.stringify(list));
+  renderRecent();
+}
+function renderRecent() {
+  const bar = $("recent");
+  const all = TEMPLATES[$("template").value].search;
+  const list = loadRecent();
+  if (!all || !list.length) { bar.hidden = true; bar.innerHTML = ""; return; }
+  bar.hidden = false;
+  bar.innerHTML = '<span class="rlabel">Recent</span>' +
+    list.map(q => `<button class="chip" type="button" data-q="${esc(q)}">${esc(q)}</button>`).join("");
+  bar.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
+    $("title").value = b.dataset.q; scan();
+  }));
+}
+
+// ---- view selector: description, recent bar, and cached re-render ----
 function syncTemplate() {
-  $("presetNote").textContent = TEMPLATES[$("template").value].note;
+  const tpl = TEMPLATES[$("template").value];
+  $("presetNote").textContent = tpl.note;
+  $("title").placeholder = tpl.search ? "type to search…" : "e.g. Oppenheimer";
+  renderRecent();
+  const cached = resultCache.get(cacheKey());
+  if (cached) {
+    status.innerHTML = `<span class="cached">Cached.</span> ${cached.hits.length} result${cached.hits.length===1?"":"s"} — press Scan to refresh.`;
+    setData(cached.hits, cached.all);
+  } else {
+    currentHits = []; $("board").hidden = true; $("refine").hidden = true;
+  }
 }
 $("template").addEventListener("change", syncTemplate);
+
+// ---- live search in All mode (debounced) ----
+let searchTimer = null;
+$("title").addEventListener("input", () => {
+  if (!TEMPLATES[$("template").value].search) return;
+  clearTimeout(searchTimer);
+  const q = $("title").value.trim();
+  if (q.length < 2) return;
+  searchTimer = setTimeout(scan, 400);
+});
+
+restoreKeys();
+renderRecent();
 syncTemplate();
 
 $("go").addEventListener("click", scan);
 $("key").addEventListener("keydown", e => { if (e.key === "Enter") scan(); });
-$("title").addEventListener("keydown", e => { if (e.key === "Enter") scan(); });
+$("title").addEventListener("keydown", e => { if (e.key === "Enter") { clearTimeout(searchTimer); scan(); } });
 </script>
 </body>
 </html>
